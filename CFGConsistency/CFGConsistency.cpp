@@ -40,7 +40,10 @@ int main(int argc, char **argv) {
         Function * funcByEntry = co->findFuncByEntry(textReg, f->addr());
         if (funcByEntry != f) {
             count ++;
-            fprintf(stderr, "Function %s at %lx not found. findFuncByEntry %p\n", f->name().c_str(), f->addr(), funcByEntry);
+            fprintf(stderr, "Function %s at %lx (%p) not found. findFuncByEntry %p\n", f->name().c_str(), f->addr(), f, funcByEntry);
+            if (funcByEntry) {
+                fprintf(stderr, "\t found %s at %lx\n", funcByEntry->name().c_str(), funcByEntry->addr());
+            }
         }
         for (auto b: f->blocks()) {
             Address midAddr = (b->start() + b->end()) / 2;
