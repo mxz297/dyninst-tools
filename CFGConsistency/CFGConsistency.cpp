@@ -32,10 +32,33 @@ int main(int argc, char **argv) {
             break;
         }
     }
-
+    co->parseGaps(textReg, IdiomMatching);
     // Check CFG consistency 
     int count = 0;
     for (auto f : co->funcs()) {
+        // Look up function by entry address
+        Function * funcByEntry = co->findFuncByEntry(textReg, f->addr());
+        if (funcByEntry != f) {
+            count ++;
+            fprintf(stderr, "Function %s at %lx not found. findFuncByEntry %p\n", f->name().c_str(), f->addr(), funcByEntry);
+        }
+        for (auto b: f->blocks()) {
+            Address midAddr = (b->start() + b->end()) / 2;
+            set<Function*> funcs;
+            co->findFuncs(textReg, midAddr, funcs);
+            bool find = false;
+            for (auto found_func : funcs) {
+                if (found_func == f) {
+                    find = true;
+                    break;
+                }
+            }
+            if (!find) {
+                ++count;
+                fprintf(stderr, "Address %lx in function %s at %lx not found.\n", midAddr, f->name().c_str(), f->addr());
+            }
+        }
+
         for (auto b : f->blocks()) {            
             // There should be a unique ParseAPI::Block for an address.
             // The block we got through iteration should be the same as
