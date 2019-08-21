@@ -14,6 +14,8 @@ def getParameters():
 def isELFFormat(msg):
     if msg.find("ASCII") != -1:
         return False
+    if msg.find("core file") != -1:
+        return False
     if msg.find("ELF") == -1:
         return False
     return True
@@ -30,7 +32,9 @@ msg, err = p.communicate()
 
 with open(args.out, "w") as f:
     for line in msg.split("\n")[:-1]:
-        path, result = line.split(":")
+        colon = line.find(":")
+        path = line[:colon]
+        result = line[colon+1:]
         if isELFFormat(result):
             f.write(path + "\n")
 tmpfile.close()            
