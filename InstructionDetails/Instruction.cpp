@@ -26,7 +26,7 @@ std::string convertExpressionSet(std::set<Expression::Ptr> &exprs) {
 }
 
 int main(int argc, char **argv) {
-    unsigned char buf[]= {0x85, 0x15, 0xba, 0x1e, 0x36, 0x00};
+    unsigned char buf[] = {0xf2, 0x0f, 0x10, 0x05, 0x0f, 0x80, 0x09, 0x00};
     InstructionDecoder dec(buf, sizeof(buf), Arch_x86_64);
 
     Instruction insn = dec.decode();

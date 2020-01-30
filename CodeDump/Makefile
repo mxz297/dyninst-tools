@@ -1,6 +1,8 @@
+#DYNINST_ROOT = /home/xm13/projects/liteCFI/thirdparty/dyninst-10.1.0/install
+DYNINST_ROOT = /home/xm13/gpu-slicing/install
 CFLAGS = -g -O2 -std=c++11
-INC = -I$(DYNINST_ROOT)/include -I$(BOOST_ROOT)/include -I$(TBB_INCLUDE)
-LIB = -L$(DYNINST_ROOT)/lib -L$(BOOST_ROOT)/lib -L$(ELFUTIL_LIB)
+INC = -I$(DYNINST_ROOT)/include
+LIB = -L$(DYNINST_ROOT)/lib 
 DEP = -lparseAPI -linstructionAPI -lsymtabAPI -lelf -ldynDwarf -ldw -lelf -ldynElf -lcommon -lboost_system
 
 
