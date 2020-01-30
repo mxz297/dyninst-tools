@@ -1,0 +1,19 @@
+DYNINST_ROOT=/home/xm13/dyninstapi/install
+DEP = -ldyninstAPI -lboost_system
+
+all: SimpleShadowStack libshadowstack.so test
+
+SimpleShadowStack: SimpleShadowStack.cpp
+	g++ -O2 -g -I$(DYNINST_ROOT)/include \
+		-L$(DYNINST_ROOT)/lib $(DEP) \
+		-Wl,-rpath='$(DYNINST_ROOT)/lib' \
+		-o SimpleShadowStack SimpleShadowStack.cpp
+
+libshadowstack.so: shadowstack.c
+	gcc -fPIC -shared -o libshadowstack.so shadowstack.c
+
+test: test.c
+	gcc -o test test.c
+
+clean:
+	rm -f SimpleShadowStack test test.inst libshadowstack.so
