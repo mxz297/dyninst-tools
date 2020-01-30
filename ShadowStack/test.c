@@ -4,6 +4,11 @@ int foo(int x) {
     return x * x;
 }
 
+int zero() {
+    return 0;
+}
+
+
 void bar(int y) {
     int buf[10];
     int i;
