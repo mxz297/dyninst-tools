@@ -11,7 +11,7 @@ MemoryAccessShadowStack.cpp: A mutator that analyze each function to decide whet
 
 shadowstack.c: A shared library for shadow stack instrumentation 
 
-## Insert an code buffer as instrumentation
+## Insert a code buffer as instrumentation
 
 The BPatch interface in Dyninst provides a snippet based interface to construct instrumentation via a set of `BPatch_snippet` classes. However, when the user wants to experiment with new instructions in a new ISA, the BPatch interface does not provide a way to do that.
 
