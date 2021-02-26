@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include "Symtab.h"
+#include "Function.h"
 
 #include "time.h"
 
