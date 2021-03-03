@@ -1,7 +1,8 @@
 all: CodeCoverage
 
-CodeCoverage: CodeCoverage.cpp
-	g++ -g -o CodeCoverage -O2 -std=c++11 CodeCoverage.cpp \
+CodeCoverage: CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp
+	g++ -g -o CodeCoverage -O2 -std=c++11 \
+	    CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp \
 		-I$(DYNINST_ROOT)/include \
 		-L$(DYNINST_ROOT)/lib \
 		-ldyninstAPI -lpatchAPI -lcommon -linstructionAPI \
