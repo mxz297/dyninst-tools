@@ -17,6 +17,7 @@ class SBGNode: public Node {
 public:
     using Ptr = std::shared_ptr<SBGNode>;
     SBGNode(Dyninst::PatchAPI::PatchBlock*);
+    Dyninst::PatchAPI::PatchBlock* getPatchBlock() { return block; }
 };
 
 class SingleBlockGraph : public Graph {

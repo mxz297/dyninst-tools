@@ -10,7 +10,7 @@ SBGNode::SBGNode(Dyninst::PatchAPI::PatchBlock* b): block(b) {}
 
 SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
     // Create all nodes
-    for (auto b : f->blocks()) {        
+    for (auto b : f->blocks()) {
         SBGNode::Ptr n = std::make_shared<SBGNode>(b);
         nodeMap.emplace(b, n);
         addNode(n);
@@ -45,7 +45,51 @@ SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
 }
 
 SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
+    // Create an empty graph
     SingleBlockGraph::Ptr ret(new SingleBlockGraph());
+
+    // Create new nodes and the mapping between the new graph and the old graph
+    std::unordered_map<SBGNode::Ptr, SBGNode::Ptr> nodeMap;
+    for (const auto& n : allNodes) {
+        SBGNode::Ptr sbgn = std::static_pointer_cast<SBGNode>(n);
+        SBGNode::Ptr newSBGN = std::make_shared<SBGNode>(sbgn->getPatchBlock());
+        nodeMap.emplace(sbgn, newSBGN);
+        ret->addNode(newSBGN);
+        ret->nodeMap[sbgn->getPatchBlock()] = newSBGN;
+    }
+    
+    // Add entry
+    for (const auto & n : entries) {
+        SBGNode::Ptr sbgn = std::static_pointer_cast<SBGNode>(n);
+        ret->addEntry(nodeMap[sbgn]);
+    }
+
+    // Add exits
+    for (const auto & n : exits) {
+        SBGNode::Ptr sbgn = std::static_pointer_cast<SBGNode>(n);
+        ret->addExit(nodeMap[sbgn]);
+    }
+
+    // Add edges based on dominator tree
+    Graph::EdgeList elist;
+    dominatorTree(elist);    
+    for (const auto& edge : elist) {
+        SBGNode::Ptr source = std::static_pointer_cast<SBGNode>(edge.first);
+        SBGNode::Ptr target = std::static_pointer_cast<SBGNode>(edge.second);
+        nodeMap[source]->addOutEdge(nodeMap[target]);
+        nodeMap[target]->addInEdge(nodeMap[source]);
+    }
+
+    // Add edges based on post dominator tree
+    elist.clear();
+    postDominatorTree(elist);
+    for (const auto& edge : elist) {
+        SBGNode::Ptr source = std::static_pointer_cast<SBGNode>(edge.first);
+        SBGNode::Ptr target = std::static_pointer_cast<SBGNode>(edge.second);
+        nodeMap[source]->addOutEdge(nodeMap[target]);
+        nodeMap[target]->addInEdge(nodeMap[source]);
+    }
+
     return ret;
 }
 
