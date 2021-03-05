@@ -1,6 +1,6 @@
 all: CodeCoverage
 
-CodeCoverage: CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp
+CodeCoverage: CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp
 	g++ -g -o CodeCoverage -O2 -std=c++11 \
 	    CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp \
 		-I$(DYNINST_ROOT)/include \

@@ -51,7 +51,7 @@ protected:
     void initializeDominatorInfo();
     void dominatorComputation(EdgeList& output, Graph::TraversalDirection dir);
 
-    std::vector<Node::Ptr> sorted_blocks;
+    std::vector<Node::Ptr> naturalOrder, reverseOrder;
     int currentDepthNo;
     
     NodeList allNodes;

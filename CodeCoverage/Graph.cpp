@@ -65,7 +65,8 @@ void Graph::addExit(Node::Ptr n) {
 
 void Graph::initializeDominatorInfo() {
     currentDepthNo = 0;
-    sorted_blocks.clear();
+    naturalOrder.clear();
+    reverseOrder.clear();
     for (auto& n : allNodes) {
         n->clearDominatorInfo();
     }
@@ -94,8 +95,8 @@ void Graph::postDominatorTree(EdgeList& elist) {
 }
 
 void Graph::dominatorComputation(EdgeList& output, Graph::TraversalDirection dir) {
-    for (size_t i = sorted_blocks.size()-1; i > 0; i--) {
-        Node::Ptr block = sorted_blocks[i];
+    for (size_t i = naturalOrder.size()-1; i > 0; i--) {
+        Node::Ptr block = naturalOrder[i];
         Node::Ptr parent = block->parent;
         if (block->dfs_no == -1) {
             continue;
@@ -127,7 +128,7 @@ void Graph::dominatorComputation(EdgeList& output, Graph::TraversalDirection dir
         }
     }
 
-    for (auto &block :  sorted_blocks) {
+    for (auto &block :  naturalOrder) {
         if (block->immDom != block->semiDom && block->immDom != nullptr) {
             block->immDom = block->immDom->immDom;
         }
@@ -137,8 +138,26 @@ void Graph::dominatorComputation(EdgeList& output, Graph::TraversalDirection dir
     }    
 }
 
-void Graph::SCC(std::vector< std::set<Node::Ptr> > &){
-
+void Graph::SCC(std::vector< std::set<Node::Ptr> > &sccList){
+    initializeDominatorInfo();
+    for (const auto& n: entries) {
+        DFS(n, TraversalDirection::Natural);
+    }
+        
+    std::vector<Node::Ptr> order = reverseOrder;
+    initializeDominatorInfo();
+    size_t curIndex = 0;
+    for (auto it = order.rbegin(); it != order.rend(); ++it) {
+        Node::Ptr n = *it;  
+        if (n->dfs_no != -1) continue;
+        std::set<Node::Ptr> scc;
+        DFS(n, TraversalDirection::Reverse);
+        for ( ;curIndex < naturalOrder.size(); ++curIndex) {
+            scc.insert(naturalOrder[curIndex]);
+        }
+        curIndex = naturalOrder.size();
+        sccList.emplace_back(scc);
+    }
 }
 
 void Graph::link(Node::Ptr parent, Node::Ptr block) {
@@ -170,7 +189,7 @@ void Graph::link(Node::Ptr parent, Node::Ptr block) {
 
 void Graph::DFS(Node::Ptr v, Graph::TraversalDirection dir) {
     v->dfs_no = currentDepthNo++;
-    sorted_blocks.emplace_back(v);
+    naturalOrder.emplace_back(v);
     v->semiDom = v;
     const Node::EdgeList& edgelist = (dir == TraversalDirection::Natural) ?
         v->outEdgeList() : v->inEdgeList();
@@ -179,6 +198,7 @@ void Graph::DFS(Node::Ptr v, Graph::TraversalDirection dir) {
         succ->parent = v;
         DFS(succ, dir);
     }
+    reverseOrder.emplace_back(v);
 }
 
 } // namespace GraphAnalysis
