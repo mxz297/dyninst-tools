@@ -7,6 +7,7 @@
 
 #include <cstring>
 
+#include "CoverageLocationOpt.hpp"
 
 using namespace Dyninst;
 using namespace PatchAPI;
@@ -21,6 +22,7 @@ bool enableFuncPointerReloc = true;
 int padding_bytes = 0;
 std::string output_filename;
 std::string input_filename;
+std::string mode = "none";
 
 class CoverageSnippet : public Dyninst::PatchAPI::Snippet {
 
@@ -59,6 +61,13 @@ void parse_command_line(int argc, char** argv) {
             enableFuncPointerReloc = false;
             continue;
         }
+
+        if (strcmp(argv[i], "--coverage-mode") == 0) {
+            mode = std::string(argv[i+1]);
+            i += 1;
+            continue;
+        }
+
         if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             exit(1);
@@ -91,8 +100,10 @@ int main(int argc, char** argv) {
         f->setLayoutOrder((uint64_t)(f->getBaseAddr()));
         BPatch_flowGraph* cfg = f->getCFG();
         std::set<BPatch_basicBlock*> blocks;
+        CoverageLocationOpt clo(Dyninst::PatchAPI::convert(f), mode);        
         cfg->getAllBasicBlocks(blocks);
         for (auto b: blocks) {
+            if (!clo.needInstrumentation(Dyninst::PatchAPI::convert(b))) continue;
             InstrumentBlock(f, b);
         }
     }

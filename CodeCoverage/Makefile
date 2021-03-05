@@ -1,8 +1,8 @@
 all: CodeCoverage
 
-CodeCoverage: CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp
+CodeCoverage: CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp CoverageLocationOpt.cpp
 	g++ -g -o CodeCoverage -O2 -std=c++11 \
-	    CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp \
+	    CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp CoverageLocationOpt.cpp \
 		-I$(DYNINST_ROOT)/include \
 		-L$(DYNINST_ROOT)/lib \
 		-ldyninstAPI -lpatchAPI -lcommon -linstructionAPI \

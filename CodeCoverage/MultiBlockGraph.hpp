@@ -1,3 +1,6 @@
+#ifndef MULTI_BLOCK_GRAPH
+#define MULTI_BLOCK_GRAPH
+
 #include "Graph.hpp"
 
 #include <memory>
@@ -18,7 +21,7 @@ class MBGNode: public Node {
     std::set<Dyninst::PatchAPI::PatchBlock*> blocks;
 public:
     using Ptr = std::shared_ptr<MBGNode>;
-    MBGNode();
+    MBGNode() {}
     void addPatchBlock(Dyninst::PatchAPI::PatchBlock* b) { blocks.insert(b); }
     const std::set<Dyninst::PatchAPI::PatchBlock*>& getPatchBlocks() { return blocks; }
     bool hasSCDGEdge(Ptr, std::shared_ptr<SingleBlockGraph>);
@@ -32,3 +35,5 @@ public:
 };
 
 }
+
+#endif

@@ -44,6 +44,10 @@ public:
     void dominatorTree(EdgeList&);
     void postDominatorTree(EdgeList&);
     void SCC(std::vector< std::set<Node::Ptr> > &);
+
+    const NodeList& getAllNodes() { return allNodes; }
+    const NodeList& getEntries() { return entries; }
+    const NodeList& getExits() { return exits; }
 protected:
     enum class TraversalDirection { Natural, Reverse };
     void link(Node::Ptr parent, Node::Ptr block);

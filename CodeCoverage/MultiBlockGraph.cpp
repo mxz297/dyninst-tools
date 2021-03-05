@@ -5,6 +5,7 @@
 
 using Dyninst::PatchAPI::PatchFunction;
 using Dyninst::PatchAPI::PatchBlock;
+using std::static_pointer_cast;
 
 
 namespace GraphAnalysis {
@@ -29,7 +30,7 @@ MultiBlockGraph::MultiBlockGraph(SingleBlockGraph::Ptr cfg) {
 
     // Create new nodes
     for (const auto& scc : sccList) {
-        MBGNode::Ptr mbgn = std::make_shared();
+        MBGNode::Ptr mbgn = std::make_shared<MBGNode>();
         for (const auto& node : scc) {
             const SBGNode::Ptr sbgn = static_pointer_cast<SBGNode>(node);
             mbgn->addPatchBlock(sbgn->getPatchBlock());

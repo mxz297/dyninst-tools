@@ -1,3 +1,6 @@
+#ifndef SINGLE_BLOCK_GRAPH
+#define SINGLE_BLOCK_GRAPH
+
 #include "Graph.hpp"
 
 #include <memory>
@@ -35,3 +38,5 @@ public:
 };
 
 }
+
+#endif
