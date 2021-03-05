@@ -25,6 +25,7 @@ public:
     void addPatchBlock(Dyninst::PatchAPI::PatchBlock* b) { blocks.insert(b); }
     const std::set<Dyninst::PatchAPI::PatchBlock*>& getPatchBlocks() { return blocks; }
     bool hasSCDGEdge(Ptr, std::shared_ptr<SingleBlockGraph>);
+    virtual void PrintNodeData() override;
 };
 
 class MultiBlockGraph : public Graph {

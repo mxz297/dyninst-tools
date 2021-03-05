@@ -9,5 +9,14 @@ CodeCoverage: CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cp
 		-lboost_system -ltbbmalloc -ltbbmalloc_proxy \
 		-Wl,-rpath='$(DYNINST_ROOT)/lib'
 
+GraphTest: GraphTest.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp
+	g++ -g -o GraphTest -O0 -std=c++11 \
+		GraphTest.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp \
+		-I$(DYNINST_ROOT)/include \
+		-L$(DYNINST_ROOT)/lib \
+		-lpatchAPI \
+		-Wl,-rpath='$(DYNINST_ROOT)/lib'
+
+
 clean:
 	rm -f CodeCoverage

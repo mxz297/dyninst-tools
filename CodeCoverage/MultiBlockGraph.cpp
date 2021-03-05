@@ -21,6 +21,14 @@ bool MBGNode::hasSCDGEdge(MBGNode::Ptr target, SingleBlockGraph::Ptr cfg) {
     return false;
 }
 
+void MBGNode::PrintNodeData() {
+    printf("MBGNode<");
+    for (auto &b : getPatchBlocks()) {
+        printf("%p,", b);
+    }
+    printf(">");
+}
+
 MultiBlockGraph::MultiBlockGraph(SingleBlockGraph::Ptr cfg) {
     //Build the dominator graph and fill in domination informaiton in cfg
     SingleBlockGraph::Ptr dominatorGraph = cfg->buildDominatorGraph();

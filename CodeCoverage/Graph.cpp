@@ -39,16 +39,31 @@ int Node::sdno() {
     return semiDom->dfs_no;
 }
 
-void Node::clearDominatorInfo() {
+void Node::clearDominatorInfo(Node::Ptr in) {
     dfs_no = -1;
     size = 1;
-    semiDom.reset();
-    immDom.reset();
-    label.reset();
-    ancestor.reset();
-    parent.reset();
-    child.reset();
+    semiDom = label = in;    
+    ancestor = parent = child = immDom = nullptr;
     bucket.clear();
+}
+
+void Node::Print() {
+    PrintNodeData();
+    printf("\n\tout edges:");
+    for (auto& n : outEdgeList()) {
+        printf(" ");
+        n->PrintNodeData();
+    }
+    printf("\n\tin edges:");
+    for (auto& n : inEdgeList()) {
+        printf(" ");
+        n->PrintNodeData();
+    }
+    printf("\n");
+}
+
+void Node::PrintNodeData() {
+    printf("Node<%p>", this);
 }
 
 void Graph::addNode(Node::Ptr n) {
@@ -60,7 +75,7 @@ void Graph::addEntry(Node::Ptr n) {
 }
 
 void Graph::addExit(Node::Ptr n) {
-    entries.emplace_back(n);
+    exits.emplace_back(n);
 }
 
 void Graph::initializeDominatorInfo() {
@@ -68,7 +83,7 @@ void Graph::initializeDominatorInfo() {
     naturalOrder.clear();
     reverseOrder.clear();
     for (auto& n : allNodes) {
-        n->clearDominatorInfo();
+        n->clearDominatorInfo(n);
     }
 }
 
@@ -135,7 +150,7 @@ void Graph::dominatorComputation(EdgeList& output, Graph::TraversalDirection dir
         if (block->immDom != nullptr) {
             output.emplace_back(std::make_pair(block->immDom, block));
         }
-    }    
+    }
 }
 
 void Graph::SCC(std::vector< std::set<Node::Ptr> > &sccList){
@@ -143,12 +158,12 @@ void Graph::SCC(std::vector< std::set<Node::Ptr> > &sccList){
     for (const auto& n: entries) {
         DFS(n, TraversalDirection::Natural);
     }
-        
+
     std::vector<Node::Ptr> order = reverseOrder;
     initializeDominatorInfo();
     size_t curIndex = 0;
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
-        Node::Ptr n = *it;  
+        Node::Ptr n = *it;
         if (n->dfs_no != -1) continue;
         std::set<Node::Ptr> scc;
         DFS(n, TraversalDirection::Reverse);
@@ -162,8 +177,8 @@ void Graph::SCC(std::vector< std::set<Node::Ptr> > &sccList){
 
 void Graph::link(Node::Ptr parent, Node::Ptr block) {
     Node::Ptr s = block;
-    while (block->label->sdno() < s->child->label->sdno()) {
-        if (s->size + s->child->child->size >= 2*s->child->size) {
+    while (s->child != nullptr && block->label->sdno() < s->child->label->sdno()) {
+        if (s->child->child != nullptr && s->size + s->child->child->size >= 2*s->child->size) {
             s->child->ancestor = s;
             s->child = s->child->child;
         } else {
@@ -199,6 +214,12 @@ void Graph::DFS(Node::Ptr v, Graph::TraversalDirection dir) {
         DFS(succ, dir);
     }
     reverseOrder.emplace_back(v);
+}
+
+void Graph::Print() {
+    for (auto &n : allNodes) {
+        n->Print();
+    }
 }
 
 } // namespace GraphAnalysis

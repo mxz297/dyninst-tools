@@ -16,12 +16,16 @@ bool SBGNode::dominates(SBGNode::Ptr b) {
     return false;
 }
 
+void SBGNode::PrintNodeData() {
+    printf("SBGNode<%p>", block);
+}
+
 SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
     // Create all nodes
     for (auto b : f->blocks()) {
         SBGNode::Ptr n = std::make_shared<SBGNode>(b);
         nodeMap.emplace(b, n);
-        addNode(n);
+        addSBGNode(n);
     }
 
     // Add entry
@@ -62,8 +66,7 @@ SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
         SBGNode::Ptr sbgn = std::static_pointer_cast<SBGNode>(n);
         SBGNode::Ptr newSBGN = std::make_shared<SBGNode>(sbgn->getPatchBlock());
         nodeMap.emplace(sbgn, newSBGN);
-        ret->addNode(newSBGN);
-        ret->nodeMap[sbgn->getPatchBlock()] = newSBGN;
+        ret->addSBGNode(newSBGN);        
     }
 
     // Add entry
@@ -105,6 +108,11 @@ SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
 
 SBGNode::Ptr SingleBlockGraph::lookupNode(Dyninst::PatchAPI::PatchBlock* b) {
     return nodeMap[b];
+}
+
+void SingleBlockGraph::addSBGNode(SBGNode::Ptr n) {
+    nodeMap[n->getPatchBlock()] = n;
+    Graph::addNode(n);
 }
 
 }
