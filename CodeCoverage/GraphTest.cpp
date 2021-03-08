@@ -1,5 +1,6 @@
 #include "SingleBlockGraph.hpp"
 #include "MultiBlockGraph.hpp"
+#include "CoverageLocationOpt.hpp"
 
 using Dyninst::PatchAPI::PatchBlock;
 using namespace GraphAnalysis;
@@ -35,4 +36,10 @@ int main(int argc, char** argv) {
     MultiBlockGraph::Ptr sbdg = std::make_shared<MultiBlockGraph>(cfg);
     printf("Superblock Dominator Graph\n");
     sbdg->Print();
+
+    CoverageLocationOpt clo(cfg, sbdg, std::string("exact"));
+    printf("Blocks to instrument for exact coverage\n");
+    for (int i = 1; i <= n; ++i) {
+        if (clo.needInstrumentation(i)) printf("\t <%d>\n", i);
+    }
 }

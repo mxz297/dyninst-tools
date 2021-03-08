@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
         CoverageLocationOpt clo(Dyninst::PatchAPI::convert(f), mode);        
         cfg->getAllBasicBlocks(blocks);
         for (auto b: blocks) {
-            if (!clo.needInstrumentation(Dyninst::PatchAPI::convert(b))) continue;
+            if (!clo.needInstrumentation(Dyninst::PatchAPI::convert(b)->start())) continue;
             InstrumentBlock(f, b);
         }
     }

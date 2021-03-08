@@ -20,18 +20,16 @@ class SBGNode: public Node {
 public:
     using Ptr = std::shared_ptr<SBGNode>;
     SBGNode(Dyninst::PatchAPI::PatchBlock*);
-    Dyninst::PatchAPI::PatchBlock* getPatchBlock() { return block; }
-    bool dominates(SBGNode::Ptr);
+    Dyninst::PatchAPI::PatchBlock* getPatchBlock() { return block; }    
     virtual void PrintNodeData() override;
 private:
     Dyninst::PatchAPI::PatchBlock* block;    
-    std::set<SBGNode::Ptr> immDominates;    
 };
 
 class SingleBlockGraph : public Graph {
-    std::unordered_map<Dyninst::PatchAPI::PatchBlock*, SBGNode::Ptr> nodeMap;    
+    std::unordered_map<Dyninst::PatchAPI::PatchBlock*, SBGNode::Ptr> nodeMap;
 public:
-    using Ptr = std::shared_ptr<SingleBlockGraph>;    
+    using Ptr = std::shared_ptr<SingleBlockGraph>;
     SingleBlockGraph(Dyninst::PatchAPI::PatchFunction*);
     SingleBlockGraph() {}
     Ptr buildDominatorGraph();

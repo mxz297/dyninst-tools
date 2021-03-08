@@ -15,7 +15,10 @@ bool MBGNode::hasSCDGEdge(MBGNode::Ptr target, SingleBlockGraph::Ptr cfg) {
         SBGNode::Ptr n1 = cfg->lookupNode(pb1);
         for (auto & pb2: target->getPatchBlocks()) {
             SBGNode::Ptr n2 = cfg->lookupNode(pb2);
-            if (n1->dominates(n2)) return true;
+            for (auto & out : n1->outEdgeList()) {
+                const SBGNode::Ptr outSBG = std::static_pointer_cast<SBGNode>(out);
+                if (outSBG == n2) return true;
+            }
         }
     }
     return false;
@@ -52,8 +55,9 @@ MultiBlockGraph::MultiBlockGraph(SingleBlockGraph::Ptr cfg) {
         for (auto & n2: allNodes) {
             MBGNode::Ptr mbgn2 = static_pointer_cast<MBGNode>(n2);
             if (mbgn1 == mbgn2) continue;
-            if (mbgn1->hasSCDGEdge(mbgn2, cfg)) {
+            if (mbgn1->hasSCDGEdge(mbgn2, dominatorGraph)) {
                 mbgn1->addOutEdge(mbgn2);
+                mbgn2->addInEdge(mbgn1);
             }
         }
     }

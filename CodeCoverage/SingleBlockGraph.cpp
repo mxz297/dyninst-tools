@@ -8,14 +8,6 @@ namespace GraphAnalysis {
 
 SBGNode::SBGNode(Dyninst::PatchAPI::PatchBlock* b): block(b) {}
 
-bool SBGNode::dominates(SBGNode::Ptr b) {
-    if (getPatchBlock() == b->getPatchBlock()) return true;
-    for (auto& im : immDominates) {
-        if (im->dominates(b)) return true;
-    }
-    return false;
-}
-
 void SBGNode::PrintNodeData() {
     printf("SBGNode<%p>", block);
 }
@@ -66,7 +58,7 @@ SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
         SBGNode::Ptr sbgn = std::static_pointer_cast<SBGNode>(n);
         SBGNode::Ptr newSBGN = std::make_shared<SBGNode>(sbgn->getPatchBlock());
         nodeMap.emplace(sbgn, newSBGN);
-        ret->addSBGNode(newSBGN);        
+        ret->addSBGNode(newSBGN);
     }
 
     // Add entry
@@ -88,9 +80,7 @@ SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
         SBGNode::Ptr source = std::static_pointer_cast<SBGNode>(edge.first);
         SBGNode::Ptr target = std::static_pointer_cast<SBGNode>(edge.second);
         nodeMap[source]->addOutEdge(nodeMap[target]);
-        nodeMap[target]->addInEdge(nodeMap[source]);
-
-        source->immDominates.insert(target);
+        nodeMap[target]->addInEdge(nodeMap[source]);        
     }
 
     // Add edges based on post dominator tree

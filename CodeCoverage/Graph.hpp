@@ -20,13 +20,13 @@ public:
 
     int sdno();
     void compress();
-    Ptr eval();    
+    Ptr eval();
     void clearDominatorInfo(Node::Ptr);
     virtual void PrintNodeData();
     void Print();
-protected:    
+protected:
     EdgeList outEdges, inEdges;
-    
+
     int dfs_no;
     int size;
     Ptr semiDom, immDom, label, ancestor, parent, child;
@@ -49,8 +49,8 @@ public:
 
     const NodeList& getAllNodes() { return allNodes; }
     const NodeList& getEntries() { return entries; }
-    const NodeList& getExits() { return exits; }    
-    void Print();    
+    const NodeList& getExits() { return exits; }
+    void Print();
 protected:
     enum class TraversalDirection { Natural, Reverse };
     void link(Node::Ptr parent, Node::Ptr block);
@@ -60,10 +60,10 @@ protected:
 
     std::vector<Node::Ptr> naturalOrder, reverseOrder;
     int currentDepthNo;
-    
+
     NodeList allNodes;
     NodeList entries;
-    NodeList exits;    
+    NodeList exits;
 };
 
 }

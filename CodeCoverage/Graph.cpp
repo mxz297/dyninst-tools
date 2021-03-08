@@ -42,7 +42,7 @@ int Node::sdno() {
 void Node::clearDominatorInfo(Node::Ptr in) {
     dfs_no = -1;
     size = 1;
-    semiDom = label = in;    
+    semiDom = label = in;
     ancestor = parent = child = immDom = nullptr;
     bucket.clear();
 }
