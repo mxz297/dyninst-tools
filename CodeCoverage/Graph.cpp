@@ -128,6 +128,7 @@ void Graph::dominatorComputation(EdgeList& output, Graph::TraversalDirection dir
         }
 
         block->semiDom->bucket.insert(block);
+        if (parent == nullptr) continue;
         link(parent, block);
 
         while (!parent->bucket.empty()) {

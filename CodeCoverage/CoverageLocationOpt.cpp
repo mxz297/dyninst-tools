@@ -67,7 +67,13 @@ void CoverageLocationOpt::determineBlocks(SingleBlockGraph::Ptr cfg, MultiBlockG
 
 PatchBlock* CoverageLocationOpt::chooseSBRep(MBGNode::Ptr mbgn) {
     // TODO: add loop analysis
-    return *(mbgn->getPatchBlocks().begin());
+    PatchBlock *ret = nullptr;
+    for (auto pb : mbgn->getPatchBlocks()) {
+        if (ret == nullptr || ret->start() > pb->start()) {
+            ret = pb;
+        }
+    }
+    return ret;
 }
 
 static void initializeVisited(std::set<PatchBlock*> &visited, MBGNode::Ptr mbgn) {

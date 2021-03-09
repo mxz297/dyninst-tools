@@ -23,6 +23,7 @@ int padding_bytes = 0;
 std::string output_filename;
 std::string input_filename;
 std::string mode = "none";
+bool verbose = false;
 
 class CoverageSnippet : public Dyninst::PatchAPI::Snippet {
 
@@ -68,6 +69,11 @@ void parse_command_line(int argc, char** argv) {
             continue;
         }
 
+        if (strcmp(argv[i], "--verbose") == 0) {
+            verbose = true;
+            continue;
+        }
+
         if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             exit(1);
@@ -100,11 +106,25 @@ int main(int argc, char** argv) {
         f->setLayoutOrder((uint64_t)(f->getBaseAddr()));
         BPatch_flowGraph* cfg = f->getCFG();
         std::set<BPatch_basicBlock*> blocks;
-        CoverageLocationOpt clo(Dyninst::PatchAPI::convert(f), mode);        
+        PatchFunction *pf = Dyninst::PatchAPI::convert(f);
+        CoverageLocationOpt clo(pf, mode);
         cfg->getAllBasicBlocks(blocks);
+        if (verbose) {
+            printf("Function %s at %lx\n", pf->name().c_str(), pf->addr());
+        }
         for (auto b: blocks) {
-            if (!clo.needInstrumentation(Dyninst::PatchAPI::convert(b)->start())) continue;
+            PatchBlock *pb = Dyninst::PatchAPI::convert(b);
+            if (!clo.needInstrumentation(pb->start())) {
+                if (verbose) {
+                    printf("\tskip block [%lx, %lx)\n", pb->start(), pb->end());
+                }
+                continue;
+            }
+            if (verbose) {
+                printf("\tinstrument block [%lx, %lx)\n", pb->start(), pb->end());
+            }
             InstrumentBlock(f, b);
+
         }
     }
     binEdit->writeFile(output_filename.c_str());
