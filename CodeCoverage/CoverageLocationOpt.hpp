@@ -20,6 +20,7 @@ namespace GraphAnalysis {
 
 class CoverageLocationOpt {
     bool realCode;
+    bool verbose;
     std::unordered_map<uint64_t, bool> instMap;
 
     void determineBlocks(
@@ -30,7 +31,7 @@ class CoverageLocationOpt {
     Dyninst::PatchAPI::PatchBlock* chooseSBRep(std::shared_ptr<GraphAnalysis::MBGNode> mbgn);
     bool hasPathWithoutChild(std::shared_ptr<GraphAnalysis::SingleBlockGraph>, std::shared_ptr<GraphAnalysis::MBGNode>);
 public:
-    CoverageLocationOpt(Dyninst::PatchAPI::PatchFunction*, std::string);
+    CoverageLocationOpt(Dyninst::PatchAPI::PatchFunction*, std::string, bool);
     CoverageLocationOpt(
         std::shared_ptr<GraphAnalysis::SingleBlockGraph>,
         std::shared_ptr<GraphAnalysis::MultiBlockGraph>,

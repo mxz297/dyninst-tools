@@ -3,13 +3,24 @@
 
 using Dyninst::PatchAPI::PatchFunction;
 using Dyninst::PatchAPI::PatchBlock;
+using Dyninst::PatchAPI::PatchEdge;
 
 namespace GraphAnalysis {
 
 SBGNode::SBGNode(Dyninst::PatchAPI::PatchBlock* b): block(b) {}
 
-void SBGNode::PrintNodeData() {
-    printf("SBGNode<%p>", block);
+void SBGNode::PrintNodeData(bool realCode) {
+    if (realCode) {
+        printf("SBGNode<%p:[%lx, %lx)>", block, block->start(), block->end());
+    } else {
+        printf("SBGNode<%p>", block);
+    }
+}
+
+static bool skipEdge(PatchEdge* e) {
+    if (e->sinkEdge() || e->interproc()) return true;
+    if (e->type() == Dyninst::ParseAPI::CATCH) return true;
+    return false;
 }
 
 SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
@@ -34,13 +45,13 @@ SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
     for (auto b: f->blocks()) {
         SBGNode::Ptr n = nodeMap[b];
         for (auto e : b->targets()) {
-            if (e->sinkEdge() || e->interproc()) continue;
+            if (skipEdge(e)) continue;
             auto it = nodeMap.find(e->trg());
             if (it == nodeMap.end()) continue;
             n->addOutEdge(it->second);
         }
         for (auto e : b->sources()) {
-            if (e->sinkEdge() || e->interproc()) continue;
+            if (skipEdge(e)) continue;
             auto it = nodeMap.find(e->src());
             if (it == nodeMap.end()) continue;
             n->addInEdge(it->second);
@@ -80,7 +91,7 @@ SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
         SBGNode::Ptr source = std::static_pointer_cast<SBGNode>(edge.first);
         SBGNode::Ptr target = std::static_pointer_cast<SBGNode>(edge.second);
         nodeMap[source]->addOutEdge(nodeMap[target]);
-        nodeMap[target]->addInEdge(nodeMap[source]);        
+        nodeMap[target]->addInEdge(nodeMap[source]);
     }
 
     // Add edges based on post dominator tree

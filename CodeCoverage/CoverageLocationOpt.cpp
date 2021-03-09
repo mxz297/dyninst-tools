@@ -10,7 +10,8 @@ using GraphAnalysis::SBGNode;
 using GraphAnalysis::MultiBlockGraph;
 using GraphAnalysis::MBGNode;
 
-CoverageLocationOpt::CoverageLocationOpt(PatchFunction* f, std::string mode) {
+CoverageLocationOpt::CoverageLocationOpt(PatchFunction* f, std::string mode, bool v) {
+    verbose = v;
     realCode = true;
     if (mode == "none") {
         for (auto b : f->blocks()) {
@@ -20,13 +21,22 @@ CoverageLocationOpt::CoverageLocationOpt(PatchFunction* f, std::string mode) {
     }
     // convert function to the graph analysis graph
     SingleBlockGraph::Ptr cfg = std::make_shared<SingleBlockGraph>(f);
+    if (verbose) {
+        printf("CFG\n");
+        cfg->Print(true);
+    }
     // get the super block dominator graph
     MultiBlockGraph::Ptr sbdg = std::make_shared<MultiBlockGraph>(cfg);
+    if (verbose) {
+        printf("SBDG\n");
+        sbdg->Print(true);
+    }
 
     determineBlocks(cfg, sbdg, mode);
 }
 
 CoverageLocationOpt::CoverageLocationOpt(SingleBlockGraph::Ptr cfg, MultiBlockGraph::Ptr sbdg, std::string mode) {
+    verbose = false;
     realCode = false;
     if (mode == "none") {
         for (auto& n : sbdg->getAllNodes()) {

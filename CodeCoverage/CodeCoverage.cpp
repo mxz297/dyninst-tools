@@ -37,9 +37,13 @@ public:
         code[0] = 0xc6;
         code[1] = 0x05;
         code[6] = 0x1;
-        int32_t disp = ((int64_t)memLoc) + InstLength - buf.curAddr();
+        int32_t disp = ((int64_t)memLoc) - (InstLength + buf.curAddr());
         *(int32_t*)(&code[2]) = disp;
         buf.copy(code, InstLength);
+        if (verbose) {
+            Dyninst::PatchAPI::PatchBlock* b = pt->block();
+            printf("Block [%lx, %lx), bit allocated at %lx, relocated code at %lx, disp %x\n", b->start(), b->end(), memLoc, buf.curAddr(), disp);
+        }
         return true;
     }
 
@@ -107,11 +111,11 @@ int main(int argc, char** argv) {
         BPatch_flowGraph* cfg = f->getCFG();
         std::set<BPatch_basicBlock*> blocks;
         PatchFunction *pf = Dyninst::PatchAPI::convert(f);
-        CoverageLocationOpt clo(pf, mode);
         cfg->getAllBasicBlocks(blocks);
         if (verbose) {
             printf("Function %s at %lx\n", pf->name().c_str(), pf->addr());
         }
+        CoverageLocationOpt clo(pf, mode, verbose);
         for (auto b: blocks) {
             PatchBlock *pb = Dyninst::PatchAPI::convert(b);
             if (!clo.needInstrumentation(pb->start())) {

@@ -24,10 +24,14 @@ bool MBGNode::hasSCDGEdge(MBGNode::Ptr target, SingleBlockGraph::Ptr cfg) {
     return false;
 }
 
-void MBGNode::PrintNodeData() {
+void MBGNode::PrintNodeData(bool realCode) {
     printf("MBGNode<");
     for (auto &b : getPatchBlocks()) {
-        printf("%p,", b);
+        if (realCode) {
+            printf("[%lx, %lx),", b->start(), b->end());
+        } else {
+            printf("%p,", b);
+        }
     }
     printf(">");
 }

@@ -27,15 +27,15 @@ int main(int argc, char** argv) {
     cfg->addEntry(cfg->lookupNode((PatchBlock*)1));
     cfg->addExit(cfg->lookupNode((PatchBlock*)n));
     printf("CFG\n");
-    cfg->Print();
+    cfg->Print(false);
 
     SingleBlockGraph::Ptr dominatorGraph = cfg->buildDominatorGraph();
     printf("Dominator Graph\n");
-    dominatorGraph->Print();
+    dominatorGraph->Print(false);
 
     MultiBlockGraph::Ptr sbdg = std::make_shared<MultiBlockGraph>(cfg);
     printf("Superblock Dominator Graph\n");
-    sbdg->Print();
+    sbdg->Print(false);
 
     CoverageLocationOpt clo(cfg, sbdg, std::string("exact"));
     printf("Blocks to instrument for exact coverage\n");

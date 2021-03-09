@@ -22,8 +22,8 @@ public:
     void compress();
     Ptr eval();
     void clearDominatorInfo(Node::Ptr);
-    virtual void PrintNodeData();
-    void Print();
+    virtual void PrintNodeData(bool);
+    void Print(bool);
 protected:
     EdgeList outEdges, inEdges;
 
@@ -50,7 +50,7 @@ public:
     const NodeList& getAllNodes() { return allNodes; }
     const NodeList& getEntries() { return entries; }
     const NodeList& getExits() { return exits; }
-    void Print();
+    void Print(bool);
 protected:
     enum class TraversalDirection { Natural, Reverse };
     void link(Node::Ptr parent, Node::Ptr block);

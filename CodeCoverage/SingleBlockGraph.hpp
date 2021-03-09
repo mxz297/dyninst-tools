@@ -20,10 +20,10 @@ class SBGNode: public Node {
 public:
     using Ptr = std::shared_ptr<SBGNode>;
     SBGNode(Dyninst::PatchAPI::PatchBlock*);
-    Dyninst::PatchAPI::PatchBlock* getPatchBlock() { return block; }    
-    virtual void PrintNodeData() override;
+    Dyninst::PatchAPI::PatchBlock* getPatchBlock() { return block; }
+    virtual void PrintNodeData(bool) override;
 private:
-    Dyninst::PatchAPI::PatchBlock* block;    
+    Dyninst::PatchAPI::PatchBlock* block;
 };
 
 class SingleBlockGraph : public Graph {

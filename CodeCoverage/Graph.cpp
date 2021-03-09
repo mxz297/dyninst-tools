@@ -1,4 +1,5 @@
 #include "Graph.hpp"
+#include <assert.h>
 
 namespace GraphAnalysis {
 
@@ -32,6 +33,7 @@ void Node::compress() {
     if (ancestor->label->sdno() < label->sdno()) {
         label = ancestor->label;
     }
+    assert(ancestor->ancestor->ancestor.get() != this);
     ancestor = ancestor->ancestor;
 }
 
@@ -47,22 +49,22 @@ void Node::clearDominatorInfo(Node::Ptr in) {
     bucket.clear();
 }
 
-void Node::Print() {
-    PrintNodeData();
+void Node::Print(bool realCode) {
+    PrintNodeData(realCode);
     printf("\n\tout edges:");
     for (auto& n : outEdgeList()) {
         printf(" ");
-        n->PrintNodeData();
+        n->PrintNodeData(realCode);
     }
     printf("\n\tin edges:");
     for (auto& n : inEdgeList()) {
         printf(" ");
-        n->PrintNodeData();
+        n->PrintNodeData(realCode);
     }
     printf("\n");
 }
 
-void Node::PrintNodeData() {
+void Node::PrintNodeData(bool) {
     printf("Node<%p>", this);
 }
 
@@ -176,29 +178,32 @@ void Graph::SCC(std::vector< std::set<Node::Ptr> > &sccList){
     }
 }
 
-void Graph::link(Node::Ptr parent, Node::Ptr block) {
-    Node::Ptr s = block;
-    while (s->child != nullptr && block->label->sdno() < s->child->label->sdno()) {
+void Graph::link(Node::Ptr v, Node::Ptr w) {
+    Node::Ptr s = w;
+    while (s->child != nullptr && w->label->sdno() < s->child->label->sdno()) {
         if (s->child->child != nullptr && s->size + s->child->child->size >= 2*s->child->size) {
+            assert(s->ancestor != s->child);
             s->child->ancestor = s;
             s->child = s->child->child;
         } else {
             s->child->size = s->size;
+            assert(s->child->ancestor != s);
             s->ancestor = s->child;
             s = s->child;
         }
     }
 
-    s->label = block->label;
-    parent->size += block->size;
-    if (parent->size < 2 * block->size) {
+    s->label = w->label;
+    v->size += w->size;
+    if (v->size < 2 * w->size) {
         Node::Ptr tmp = s;
-        s = parent->child;
-        parent->child = tmp;
+        s = v->child;
+        v->child = tmp;
     }
 
     while (s != nullptr) {
-        s->ancestor = parent;
+        assert(v->ancestor != s);
+        s->ancestor = v;
         s = s->child;
     }
 }
@@ -217,9 +222,9 @@ void Graph::DFS(Node::Ptr v, Graph::TraversalDirection dir) {
     reverseOrder.emplace_back(v);
 }
 
-void Graph::Print() {
+void Graph::Print(bool realCode) {
     for (auto &n : allNodes) {
-        n->Print();
+        n->Print(realCode);
     }
 }
 
