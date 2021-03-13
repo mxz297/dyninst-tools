@@ -5,6 +5,11 @@
 #include "BPatch_basicBlock.h"
 #include "BPatch_point.h"
 
+#include "PatchCFG.h"
+#include "CFG.h"
+#include "CodeSource.h"
+#include "Region.h"
+
 #include <cstring>
 
 #include "CoverageLocationOpt.hpp"
@@ -86,6 +91,15 @@ void parse_command_line(int argc, char** argv) {
     }
 }
 
+static bool skipFunction(BPatch_function * f) {
+    // Skip functions not in .text
+    PatchFunction * patchFunc = Dyninst::PatchAPI::convert(f);
+    ParseAPI::Function* parseFunc = patchFunc->function();
+    ParseAPI::SymtabCodeRegion* scr = static_cast<ParseAPI::SymtabCodeRegion*>(parseFunc->region());
+    SymtabAPI::Region* r = scr->symRegion();
+    return r->getRegionName() != ".text";
+}
+
 void InstrumentBlock(BPatch_function *f, BPatch_basicBlock* b) {
     Address memLoc = binEdit->allocateStaticMemoryRegion(1, "");
     Snippet::Ptr coverage = CoverageSnippet::create(new CoverageSnippet(memLoc));
@@ -107,6 +121,7 @@ int main(int argc, char** argv) {
     std::vector<BPatch_function*>* funcs = image->getProcedures();
 
     for (auto f : *funcs) {
+        if (skipFunction(f)) continue;
         f->setLayoutOrder((uint64_t)(f->getBaseAddr()));
         BPatch_flowGraph* cfg = f->getCFG();
         std::set<BPatch_basicBlock*> blocks;
