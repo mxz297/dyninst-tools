@@ -5,6 +5,7 @@
 
 using Dyninst::PatchAPI::PatchFunction;
 using Dyninst::PatchAPI::PatchBlock;
+using Dyninst::PatchAPI::PatchLoop;
 using GraphAnalysis::SingleBlockGraph;
 using GraphAnalysis::SBGNode;
 using GraphAnalysis::MultiBlockGraph;
@@ -32,7 +33,11 @@ CoverageLocationOpt::CoverageLocationOpt(PatchFunction* f, std::string mode, boo
         sbdg->Print(true);
     }
 
+    computeLoopNestLevels(f);
+
     determineBlocks(cfg, sbdg, mode);
+
+    //countInstrumentedBlocksInLoops(f);
 }
 
 CoverageLocationOpt::CoverageLocationOpt(SingleBlockGraph::Ptr cfg, MultiBlockGraph::Ptr sbdg, std::string mode) {
@@ -76,7 +81,7 @@ void CoverageLocationOpt::determineBlocks(SingleBlockGraph::Ptr cfg, MultiBlockG
 }
 
 PatchBlock* CoverageLocationOpt::chooseSBRep(MBGNode::Ptr mbgn) {
-    // TODO: add loop analysis
+    // Choose a block that has the lowest address
     PatchBlock *ret = nullptr;
     for (auto pb : mbgn->getPatchBlocks()) {
         if (ret == nullptr || ret->start() > pb->start()) {
@@ -84,6 +89,17 @@ PatchBlock* CoverageLocationOpt::chooseSBRep(MBGNode::Ptr mbgn) {
         }
     }
     return ret;
+    /*
+    // Choose a block that has the smallest loop nest level
+    PatchBlock *ret = nullptr;
+    for (auto pb : mbgn->getPatchBlocks()) {
+        if (ret == nullptr || loopNestLevel[pb] < loopNestLevel[ret] ||
+            (loopNestLevel[pb] == loopNestLevel[ret] && ret->start() > pb->start())) {
+            ret = pb;
+        }
+    }
+    return ret;
+    */
 }
 
 static void initializeVisited(std::set<PatchBlock*> &visited, MBGNode::Ptr mbgn) {
@@ -131,3 +147,42 @@ bool CoverageLocationOpt::hasPathWithoutChild(SingleBlockGraph::Ptr cfg, MBGNode
     if (!canReachExit(instB, cfg, visited)) return false;
     return true;
 }
+
+void CoverageLocationOpt::computeLoopNestLevels(PatchFunction* f) {
+    loopNestLevel.clear();
+
+    vector<PatchLoop*> loops;
+    f->getOuterLoops(loops);
+    for (auto l : loops) {
+        computeLoopNestLevelsImpl(l, 1);
+    }
+}
+
+void CoverageLocationOpt::computeLoopNestLevelsImpl(PatchLoop *l , int level) {
+    vector<PatchBlock*> blocks;
+    l->getLoopBasicBlocksExclusive(blocks);
+    for (auto b : blocks) {
+        loopNestLevel[b] = level;
+    }
+
+    vector<PatchLoop*> loops;
+    l->getOuterLoops(loops);
+    for (auto nl : loops) {
+        computeLoopNestLevelsImpl(nl, level + 1);
+    }
+}
+
+void CoverageLocationOpt::countInstrumentedBlocksInLoops(PatchFunction* f) {
+    vector<PatchLoop*> loops;
+    f->getOuterLoops(loops);
+    for (auto l : loops) {
+        vector<PatchBlock*> blocks;
+        l->getLoopBasicBlocks(blocks);
+        int cnt = 0;
+        for (auto b : blocks) {
+            if (needInstrumentation(b->start())) cnt += 1;
+        }
+        printf("Loop has %d instrumented blocks\n", cnt);
+    }
+}
+

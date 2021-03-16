@@ -9,6 +9,7 @@ namespace Dyninst {
     namespace PatchAPI {
         class PatchFunction;
         class PatchBlock;
+        class PatchLoop;
     }
 }
 
@@ -22,11 +23,16 @@ class CoverageLocationOpt {
     bool realCode;
     bool verbose;
     std::unordered_map<uint64_t, bool> instMap;
+    std::unordered_map<Dyninst::PatchAPI::PatchBlock*, int> loopNestLevel;
 
     void determineBlocks(
         std::shared_ptr<GraphAnalysis::SingleBlockGraph>,
         std::shared_ptr<GraphAnalysis::MultiBlockGraph>,
         std::string&);
+
+    void computeLoopNestLevels(Dyninst::PatchAPI::PatchFunction*);
+    void computeLoopNestLevelsImpl(Dyninst::PatchAPI::PatchLoop* , int);
+    void countInstrumentedBlocksInLoops(Dyninst::PatchAPI::PatchFunction*);
 
     Dyninst::PatchAPI::PatchBlock* chooseSBRep(std::shared_ptr<GraphAnalysis::MBGNode> mbgn);
     bool hasPathWithoutChild(std::shared_ptr<GraphAnalysis::SingleBlockGraph>, std::shared_ptr<GraphAnalysis::MBGNode>);

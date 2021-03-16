@@ -24,16 +24,19 @@ BPatch_image* image;
 bool instSharedLibs = false;
 bool enableJumptableReloc = true;
 bool enableFuncPointerReloc = true;
+
+bool threadLocalMemory = true;
+
 int padding_bytes = 0;
 std::string output_filename;
 std::string input_filename;
 std::string mode = "none";
 bool verbose = false;
 
-class CoverageSnippet : public Dyninst::PatchAPI::Snippet {
+class GlobalMemCoverageSnippet : public Dyninst::PatchAPI::Snippet {
 
 public:
-    explicit CoverageSnippet(Address addr): memLoc(addr) {}
+    explicit GlobalMemCoverageSnippet(Address addr): memLoc(addr) {}
     bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
         // Instruction template:
         // c6 05 37 e5 33 00 01    movb   $0x1,0x33e537(%rip)
@@ -54,6 +57,32 @@ public:
 
 private:
     Address memLoc;
+};
+
+class ThreadLocalMemCoverageSnippet : public Dyninst::PatchAPI::Snippet {
+
+public:
+    explicit ThreadLocalMemCoverageSnippet(int o) : offset(o) {}
+    bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+        // Instruction template:
+        // 65 c6 04 25 87 01 00 00 01    movb   $0x1,%gs:0x187
+        const int InstLength = 9;
+        char code[InstLength];
+        code[0] = 0x65;
+        code[1] = 0xc6;
+        code[2] = 0x04;
+        code[3] = 0x25;
+        code[8] = 0x1;
+        *(int32_t*)(&code[4]) = offset;
+        buf.copy(code, InstLength);
+        if (verbose) {
+            Dyninst::PatchAPI::PatchBlock* b = pt->block();
+            printf("Block [%lx, %lx), bit offset at %x, relocated code at %lx\n", b->start(), b->end(), offset, buf.curAddr());
+        }
+        return true;
+    }
+private:
+    int offset;
 };
 
 void parse_command_line(int argc, char** argv) {
@@ -83,6 +112,16 @@ void parse_command_line(int argc, char** argv) {
             continue;
         }
 
+        if (strcmp(argv[i], "--use-global-memory") == 0) {
+            threadLocalMemory = false;
+            continue;
+        }
+
+        if (strcmp(argv[i], "--use-thread-local-memory") == 0) {
+            threadLocalMemory = true;
+            continue;
+        }
+
         if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             exit(1);
@@ -101,8 +140,15 @@ static bool skipFunction(BPatch_function * f) {
 }
 
 void InstrumentBlock(BPatch_function *f, BPatch_basicBlock* b) {
-    Address memLoc = binEdit->allocateStaticMemoryRegion(1, "");
-    Snippet::Ptr coverage = CoverageSnippet::create(new CoverageSnippet(memLoc));
+    Snippet::Ptr coverage;
+    if (!threadLocalMemory) {
+        Address memLoc = binEdit->allocateStaticMemoryRegion(1, "");
+        coverage = GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet(memLoc));
+    } else {
+        static int offset = 0;
+        coverage = ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet(offset));
+        offset += 1;
+    }
 
     BPatch_point* bp = b->findEntryPoint();
     assert(bp != nullptr);
@@ -143,7 +189,6 @@ int main(int argc, char** argv) {
                 printf("\tinstrument block [%lx, %lx)\n", pb->start(), pb->end());
             }
             InstrumentBlock(f, b);
-
         }
     }
     binEdit->writeFile(output_filename.c_str());
