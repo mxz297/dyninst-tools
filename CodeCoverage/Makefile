@@ -1,22 +1,27 @@
+CXX = g++
+CXXFLAGS = -g -Wall -std=c++11 -O2
+INC = -I$(DYNINST_ROOT)/include
+LIB = -L$(DYNINST_ROOT)/lib
+DEP = -ldyninstAPI -lpatchAPI -lcommon -lsymtabAPI -linstructionAPI \
+		-lboost_system -ltbbmalloc -ltbbmalloc_proxy
+
+COMMON_SRC = Graph.cpp \
+	  SingleBlockGraph.cpp \
+	  MultiBlockGraph.cpp \
+	  CoverageLocationOpt.cpp
+
+COMMON_OBJ = $(COMMON_SRC:.cpp=.o)
+
 all: CodeCoverage GraphTest
 
-CodeCoverage: CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp CoverageLocationOpt.cpp
-	g++ -g -o CodeCoverage -O2 -std=c++11 \
-	    CodeCoverage.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp CoverageLocationOpt.cpp \
-		-I$(DYNINST_ROOT)/include \
-		-L$(DYNINST_ROOT)/lib \
-		-ldyninstAPI -lpatchAPI -lcommon -lsymtabAPI -linstructionAPI \
-		-lboost_system -ltbbmalloc -ltbbmalloc_proxy \
-		-Wl,-rpath='$(DYNINST_ROOT)/lib'
+%.o:%.cpp
+	$(CXX) -c $(CXXFLAGS) $(INC) -o $@ $<
 
-GraphTest: GraphTest.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp CoverageLocationOpt.cpp
-	g++ -g -o GraphTest -O2 -std=c++11 \
-		GraphTest.cpp Graph.cpp SingleBlockGraph.cpp MultiBlockGraph.cpp CoverageLocationOpt.cpp \
-		-I$(DYNINST_ROOT)/include \
-		-L$(DYNINST_ROOT)/lib \
-		-lpatchAPI \
-		-Wl,-rpath='$(DYNINST_ROOT)/lib'
+CodeCoverage: $(COMMON_OBJ) CodeCoverage.o
+	$(CXX) $(LIB) -o $@ $^ -Wl,-rpath='$(DYNINST_ROOT)/lib' $(DEP) 
 
+GraphTest: $(COMMON_OBJ) GraphTest.o
+	$(CXX) $(LIB) -o $@ $^ -Wl,-rpath='$(DYNINST_ROOT)/lib' $(DEP) 
 
 clean:
-	rm -f CodeCoverage GraphTest
+	rm -f CodeCoverage GraphTest *.o
