@@ -5,6 +5,12 @@ LIB = -L$(DYNINST_ROOT)/lib
 DEP = -ldyninstAPI -lpatchAPI -lcommon -lsymtabAPI -linstructionAPI \
 		-lboost_system -ltbbmalloc -ltbbmalloc_proxy
 
+COVERAGE_SRC = CodeCoverage.cpp \
+	CoverageSnippet.cpp \
+	LoopCloneOptimizer.cpp
+
+COVERAGE_OBJ = $(COVERAGE_SRC:.cpp=.o)
+
 COMMON_SRC = Graph.cpp \
 	  SingleBlockGraph.cpp \
 	  MultiBlockGraph.cpp \
@@ -17,7 +23,7 @@ all: CodeCoverage GraphTest
 %.o:%.cpp
 	$(CXX) -c $(CXXFLAGS) $(INC) -o $@ $<
 
-CodeCoverage: $(COMMON_OBJ) CodeCoverage.o
+CodeCoverage: $(COMMON_OBJ) $(COVERAGE_OBJ)
 	$(CXX) $(LIB) -o $@ $^ -Wl,-rpath='$(DYNINST_ROOT)/lib' $(DEP) 
 
 GraphTest: $(COMMON_OBJ) GraphTest.o

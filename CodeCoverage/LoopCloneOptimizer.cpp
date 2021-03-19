@@ -1,0 +1,172 @@
+#include "LoopCloneOptimizer.hpp"
+#include "CoverageSnippet.hpp"
+
+#include "BPatch.h"
+#include "BPatch_binaryEdit.h"
+#include "BPatch_function.h"
+#include "BPatch_basicBlock.h"
+#include "BPatch_point.h"
+
+#include "PatchCFG.h"
+#include "Point.h"
+#include "PatchModifier.h"
+#include "PatchMgr.h"
+
+
+extern bool threadLocalMemory;
+extern BPatch_binaryEdit *binEdit;
+extern int gsOffset;
+
+using Dyninst::PatchAPI::Snippet;
+using Dyninst::PatchAPI::Point;
+using Dyninst::PatchAPI::PatchLoop;
+using Dyninst::PatchAPI::PatchFunction;
+using Dyninst::PatchAPI::PatchBlock;
+using Dyninst::PatchAPI::PatchEdge;
+using Dyninst::PatchAPI::PatchModifier;
+using Dyninst::PatchAPI::PatchMgr;
+using Dyninst::PatchAPI::CFGMaker;
+
+LoopCloneOptimizer::LoopCloneOptimizer(
+    BPatch_function* bf,
+    std::set<BPatch_basicBlock*> & blocks
+): instBlocks(blocks) {    
+    f = Dyninst::PatchAPI::convert(bf);
+
+    for (auto b : f->blocks()) {
+        origBlockMap[b->start()] = b;
+    }
+}
+
+void LoopCloneOptimizer::instrument() {
+
+    for (auto b : instBlocks) {
+        Snippet::Ptr coverage = threadLocalMemory ?
+            ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet()) :
+            GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet());
+
+        BPatch_point* bp = b->findEntryPoint();
+        assert(bp != nullptr);
+
+        Point* p = Dyninst::PatchAPI::convert(bp, BPatch_callBefore);
+        assert(p != nullptr);
+        snippetMap[b->getStartAddress()] = coverage;
+    }
+
+    vector<PatchLoop*> loops;
+    f->getOuterLoops(loops);
+    for (auto l : loops) {
+        cloneALoop(l);
+    }
+}
+
+void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {   
+    vector<PatchBlock*> blocks;
+    l->getLoopBasicBlocks(blocks);
+    std::vector<PatchBlock*> ib;
+    vector<PatchBlock*> instumentedBlocks;
+    for (auto b : blocks) {
+        if (snippetMap.find(b->start()) != snippetMap.end()) {
+            instumentedBlocks.emplace_back(b);
+        }
+    }
+    if (instumentedBlocks.empty()) return;
+
+    int cloneCopies = 1 << instumentedBlocks.size();
+
+    for (int i = 1; i < cloneCopies; ++i) {
+        makeOneCopy(i, blocks);
+    }
+
+    for (int i = 0; i < cloneCopies; ++i) {
+        int index = 0;
+        for (auto b : instumentedBlocks) {
+            if (i & (1 << index)) continue;
+            if (i > 0) {
+                b = versionedCloneMap[i - 1][b];
+            }
+            int newVersion = i | (1 << index);
+            for (auto e : b->targets()) {
+                if (e->type() == Dyninst::ParseAPI::CATCH) continue;
+                if (e->sinkEdge() || e->interproc()) continue;
+                PatchBlock* origB = origBlockMap[e->trg()->start()];
+                auto it = versionedCloneMap[newVersion - 1].find(origB);
+                if (it == versionedCloneMap[newVersion - 1].end()) continue;
+                PatchBlock* newTarget = it->second;
+                assert(PatchModifier::redirect(e, newTarget));
+            }
+            index += 1;
+        }
+    }
+
+    PatchMgr::Ptr patcher = Dyninst::PatchAPI::convert(binEdit);
+    for (int i = 1; i < cloneCopies; ++i) {
+        int index = 0;
+        for (auto b : instumentedBlocks) {
+            if (i & (1 << index)) continue;            
+            Point* p = patcher->findPoint(Dyninst::PatchAPI::Location::BlockInstance(f, b), Point::BlockEntry);
+            assert(p);
+            p->pushBack(snippetMap[b->start()]);
+            index += 1;
+        }
+    }
+
+}
+
+void LoopCloneOptimizer::makeOneCopy(int version, vector<PatchBlock*> &blocks) {
+    // Clone all blocks in the loop
+    std::map<PatchBlock*, PatchBlock*> cloneBlockMap;
+    std::vector<PatchBlock*> newBlocks;
+    CFGMaker* cfgMaker = BPatch::getBPatch()->getCFGMaker();
+    for (auto b : blocks) {
+        PatchBlock* cloneB = cfgMaker->cloneBlock(b, b->object());
+        cloneB->setCloneVersion(version);
+        cloneBlockMap[b] = cloneB;
+        newBlocks.emplace_back(cloneB);
+        PatchModifier::addBlockToFunction(f, cloneB);
+    }
+
+    versionedCloneMap.emplace_back(cloneBlockMap);
+
+    // 3. Copy the jump table data from calee to caller
+    // Jump table data copy should be done before redirecting edges
+    for (auto &it : cloneBlockMap) {
+        PatchBlock* origB = it.first;
+        PatchBlock* newB = it.second;
+        const auto jit = f->getJumpTableMap().find(origB);
+        if (jit == f->getJumpTableMap().end()) continue;
+        PatchFunction::PatchJumpTableInstance pjti = jit->second;
+
+        // Build a map from target address to PatchEdge
+        // We can use this map to match cloned edge with original edge
+        std::unordered_map<Dyninst::Address, PatchEdge*> newEdges;
+        for (auto e : newB->targets()) {
+            if (e->sinkEdge() || e->type() != Dyninst::ParseAPI::INDIRECT) continue;
+            newEdges[e->trg()->start()] = e;
+        }
+
+        // Update edges in jump table data to cloned edges
+        for (auto& e : pjti.tableEntryEdges) {
+            Dyninst::Address trg = e->trg()->start();
+            auto edgeIter = newEdges.find(trg);
+            assert(edgeIter != newEdges.end());
+            e = edgeIter->second;
+        }
+
+        f->addJumpTableInstance(newB, pjti);
+    }
+
+    // 4. The edges of the cloned blocks are still from/to original blocks
+    // Now we redirect all edges
+    for (auto b : newBlocks) {
+        bool isRetBlock = false;
+        for (auto e : b->targets()) {
+            if (e->sinkEdge() || e->interproc()) continue;
+            if (e->type() == Dyninst::ParseAPI::CATCH) continue;
+            auto it = cloneBlockMap.find(e->trg());
+            if (it == cloneBlockMap.end()) continue;
+            PatchBlock* newTarget = it->second;
+            assert(PatchModifier::redirect(e, newTarget));
+        }
+    }
+}

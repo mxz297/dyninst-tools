@@ -178,11 +178,16 @@ void CoverageLocationOpt::countInstrumentedBlocksInLoops(PatchFunction* f) {
     for (auto l : loops) {
         vector<PatchBlock*> blocks;
         l->getLoopBasicBlocks(blocks);
-        int cnt = 0;
+        std::vector<PatchBlock*> ib;
         for (auto b : blocks) {
-            if (needInstrumentation(b->start())) cnt += 1;
+            if (needInstrumentation(b->start())) {
+                ib.emplace_back(b);
+            }
         }
-        printf("Loop has %d instrumented blocks\n", cnt);
+        printf("Loop in function %s has %d instrumented blocks\n", f->name().c_str(), ib.size());
+        for (auto b : ib) {
+            printf("\t[%lx, %lx)\n", b->start(), b->end());
+        }
     }
 }
 
