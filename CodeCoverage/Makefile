@@ -24,10 +24,10 @@ all: CodeCoverage GraphTest
 	$(CXX) -c $(CXXFLAGS) $(INC) -o $@ $<
 
 CodeCoverage: $(COMMON_OBJ) $(COVERAGE_OBJ)
-	$(CXX) $(LIB) -o $@ $^ -Wl,-rpath='$(DYNINST_ROOT)/lib' $(DEP) 
+	$(CXX) $(LIB) -o $@ $^ -Wl,-rpath='$(DYNINST_ROOT)/lib' $(DEP)
 
 GraphTest: $(COMMON_OBJ) GraphTest.o
-	$(CXX) $(LIB) -o $@ $^ -Wl,-rpath='$(DYNINST_ROOT)/lib' $(DEP) 
+	$(CXX) $(LIB) -o $@ $^ -Wl,-rpath='$(DYNINST_ROOT)/lib' $(DEP)
 
 clean:
 	rm -f CodeCoverage GraphTest *.o

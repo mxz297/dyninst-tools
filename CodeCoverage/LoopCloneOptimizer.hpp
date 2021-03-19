@@ -13,12 +13,13 @@ namespace Dyninst {
 }
 
 #include "Snippet.h"
+#include "CoverageSnippet.hpp"
 
-class LoopCloneOptimizer {    
+class LoopCloneOptimizer {
     Dyninst::PatchAPI::PatchFunction* f;
     std::set<BPatch_basicBlock*> &instBlocks;
 
-    std::unordered_map<uint64_t, Dyninst::PatchAPI::Snippet::Ptr> snippetMap;
+    std::unordered_map<uint64_t, CoverageSnippet::Ptr> snippetMap;
     std::unordered_map<uint64_t, Dyninst::PatchAPI::PatchBlock*> origBlockMap;
     std::vector< std::map<Dyninst::PatchAPI::PatchBlock*, Dyninst::PatchAPI::PatchBlock* > > versionedCloneMap;
 

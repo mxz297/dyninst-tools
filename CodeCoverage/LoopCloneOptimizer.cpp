@@ -30,7 +30,7 @@ using Dyninst::PatchAPI::CFGMaker;
 LoopCloneOptimizer::LoopCloneOptimizer(
     BPatch_function* bf,
     std::set<BPatch_basicBlock*> & blocks
-): instBlocks(blocks) {    
+): instBlocks(blocks) {
     f = Dyninst::PatchAPI::convert(bf);
 
     for (auto b : f->blocks()) {
@@ -41,9 +41,10 @@ LoopCloneOptimizer::LoopCloneOptimizer(
 void LoopCloneOptimizer::instrument() {
 
     for (auto b : instBlocks) {
-        Snippet::Ptr coverage = threadLocalMemory ?
+        CoverageSnippet::Ptr coverage = boost::static_pointer_cast<CoverageSnippet>(
+            threadLocalMemory ?
             ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet()) :
-            GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet());
+            GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet()));
 
         BPatch_point* bp = b->findEntryPoint();
         assert(bp != nullptr);
@@ -51,6 +52,7 @@ void LoopCloneOptimizer::instrument() {
         Point* p = Dyninst::PatchAPI::convert(bp, BPatch_callBefore);
         assert(p != nullptr);
         snippetMap[b->getStartAddress()] = coverage;
+        p->pushBack(coverage);
     }
 
     vector<PatchLoop*> loops;
@@ -60,7 +62,7 @@ void LoopCloneOptimizer::instrument() {
     }
 }
 
-void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {   
+void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
     vector<PatchBlock*> blocks;
     l->getLoopBasicBlocks(blocks);
     std::vector<PatchBlock*> ib;
@@ -72,7 +74,7 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
     }
     if (instumentedBlocks.empty()) return;
 
-    int cloneCopies = 1 << instumentedBlocks.size();
+    int cloneCopies = 1 << instumentedBlocks.size();    
 
     for (int i = 1; i < cloneCopies; ++i) {
         makeOneCopy(i, blocks);
@@ -81,7 +83,10 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
     for (int i = 0; i < cloneCopies; ++i) {
         int index = 0;
         for (auto b : instumentedBlocks) {
-            if (i & (1 << index)) continue;
+            if (i & (1 << index)) {
+                index++;
+                continue;
+            }
             if (i > 0) {
                 b = versionedCloneMap[i - 1][b];
             }
@@ -103,14 +108,19 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
     for (int i = 1; i < cloneCopies; ++i) {
         int index = 0;
         for (auto b : instumentedBlocks) {
-            if (i & (1 << index)) continue;            
-            Point* p = patcher->findPoint(Dyninst::PatchAPI::Location::BlockInstance(f, b), Point::BlockEntry);
+            if (i & (1 << index)) {
+                index++;
+                continue;
+            }
+            int newVersion = i | (1 << index);
+            PatchBlock* instB = versionedCloneMap[newVersion - 1][b];
+            Point* p = patcher->findPoint(Dyninst::PatchAPI::Location::BlockInstance(f, instB), Point::BlockEntry);
             assert(p);
-            p->pushBack(snippetMap[b->start()]);
+            CoverageSnippet::Ptr snippet = snippetMap[b->start()];
+            p->pushBack(snippet);
             index += 1;
         }
     }
-
 }
 
 void LoopCloneOptimizer::makeOneCopy(int version, vector<PatchBlock*> &blocks) {
@@ -159,7 +169,6 @@ void LoopCloneOptimizer::makeOneCopy(int version, vector<PatchBlock*> &blocks) {
     // 4. The edges of the cloned blocks are still from/to original blocks
     // Now we redirect all edges
     for (auto b : newBlocks) {
-        bool isRetBlock = false;
         for (auto e : b->targets()) {
             if (e->sinkEdge() || e->interproc()) continue;
             if (e->type() == Dyninst::ParseAPI::CATCH) continue;
