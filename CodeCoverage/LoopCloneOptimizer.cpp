@@ -65,7 +65,6 @@ void LoopCloneOptimizer::instrument() {
 void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
     vector<PatchBlock*> blocks;
     l->getLoopBasicBlocks(blocks);
-    std::vector<PatchBlock*> ib;
     vector<PatchBlock*> instumentedBlocks;
     for (auto b : blocks) {
         if (snippetMap.find(b->start()) != snippetMap.end()) {
@@ -73,8 +72,9 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
         }
     }
     if (instumentedBlocks.empty()) return;
+    versionedCloneMap.clear();
 
-    int cloneCopies = 1 << instumentedBlocks.size();    
+    int cloneCopies = 1 << instumentedBlocks.size();
 
     for (int i = 1; i < cloneCopies; ++i) {
         makeOneCopy(i, blocks);
