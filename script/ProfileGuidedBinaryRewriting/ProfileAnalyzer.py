@@ -11,7 +11,13 @@ class InstrumentDataAnalyzer:
 
         # Key is the function address
         self.functionOverhead = {}
-        self.functionNames = {}
+        self.functionAddrNamesMap = {}
+
+        for name, addr in self.reader.procedure_addr.items():
+            if addr == "0": continue 
+            self.functionAddrNamesMap[addr] = name
+
+        self.functionCallChainOverhead = {}
 
 
     def bottomUpViewForInstrumentation(self):
@@ -19,27 +25,53 @@ class InstrumentDataAnalyzer:
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
-            funcName, funcAddr = self.findParentFunction(cctNode)
+            funcAddr, containingNode = self.findParentFunction(cctNode)
+            if funcAddr == "0":
+                print ("callee addr 0",containingNode.node_dict)            
             val = self.findChildMetric(cctNode)
             if funcAddr not in self.functionOverhead:
                 self.functionOverhead[funcAddr] = 0
-                self.functionNames[funcAddr] = funcName
             self.functionOverhead[funcAddr] += val
 
+            callerAddr, callerNode = self.findParentFunction(containingNode)
+            if callerAddr == "0":
+                print ("caller addr 0", callerNode.node_dict)
+
+            callPairKey = (callerAddr, funcAddr)
+            if callPairKey not in self.functionCallChainOverhead:
+                self.functionCallChainOverhead[callPairKey] = 0
+            self.functionCallChainOverhead[callPairKey] += val
+
+        """
         funcList = []
         for k , v in self.functionOverhead.items():
             funcList.append((v, k , self.functionNames[k]))
         funcList.sort(reverse=True)
         for m, addr, name in funcList:
             print(name, addr, m)                            
+        """
+        funcCallList = []
+        for k , v in self.functionCallChainOverhead.items():
+            funcCallList.append((v, k))
+        funcCallList.sort(reverse=True)
+        K = 0
+        for m, funcPair in funcCallList:
+            K += 1
+            print("{0}({1}) --> {2}({3}) : {4}".format(
+                self.functionAddrNamesMap[funcPair[0]], funcPair[0],
+                self.functionAddrNamesMap[funcPair[1]], funcPair[1],
+                m))
+            if K == 10: break
+
+
 
     def findParentFunction(self, cctNode):
         assert(len(cctNode.parents) == 1)
         curNode = cctNode.parents[0]
-        while curNode.node_dict['type'] != 'PF' and curNode.node_dict['type'] != 'Pr':
+        while curNode.node_dict['type'] != 'PF':
             assert(len(curNode.parents) == 1)
             curNode = curNode.parents[0]
-        return curNode.node_dict['name'], self.reader.procedure_addr[curNode.node_dict['name']]
+        return self.reader.procedure_addr[curNode.node_dict['name']], curNode
 
     def findChildMetric(self, cctNode):
         assert(len(cctNode.children) == 1)
