@@ -14,28 +14,39 @@ class InstrumentDataAnalyzer:
         self.functionAddrNamesMap = {}
 
         for name, addr in self.reader.procedure_addr.items():
-            if addr == "0": continue 
+            if addr == "0": continue
             self.functionAddrNamesMap[addr] = name
 
         self.functionCallChainOverhead = {}
+        self.metric_id = None
+        for metric_id, metric_name in self.reader.metric_names.items():
+            if metric_name.find("(E)") != -1:
+                self.metric_id = metric_id
+        if self.metric_id is None:
+            for metric_id, metric_name in self.reader.metric_names.items():
+                self.metric_id = metric_id
+                break
 
 
-    def bottomUpViewForInstrumentation(self):
+    def bottomUpViewForInstrumentation(self, topk):
         self.instOverhead = {}
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
             funcAddr, containingNode = self.findParentFunction(cctNode)
-            if funcAddr == "0":
-                print ("callee addr 0",containingNode.node_dict)            
+            #if funcAddr == "0":
+            #    print ("callee addr 0",containingNode.node_dict)
             val = self.findChildMetric(cctNode)
             if funcAddr not in self.functionOverhead:
                 self.functionOverhead[funcAddr] = 0
             self.functionOverhead[funcAddr] += val
 
             callerAddr, callerNode = self.findParentFunction(containingNode)
-            if callerAddr == "0":
-                print ("caller addr 0", callerNode.node_dict)
+            #if callerAddr == "0":
+            #    print ("caller addr 0", callerNode.node_dict)
+
+            # This needs more investigation
+            if callerAddr == '0' or funcAddr == '0': continue
 
             callPairKey = (callerAddr, funcAddr)
             if callPairKey not in self.functionCallChainOverhead:
@@ -48,7 +59,7 @@ class InstrumentDataAnalyzer:
             funcList.append((v, k , self.functionNames[k]))
         funcList.sort(reverse=True)
         for m, addr, name in funcList:
-            print(name, addr, m)                            
+            print(name, addr, m)
         """
         funcCallList = []
         for k , v in self.functionCallChainOverhead.items():
@@ -56,12 +67,14 @@ class InstrumentDataAnalyzer:
         funcCallList.sort(reverse=True)
         K = 0
         for m, funcPair in funcCallList:
-            K += 1
-            print("{0}({1}) --> {2}({3}) : {4}".format(
-                self.functionAddrNamesMap[funcPair[0]], funcPair[0],
-                self.functionAddrNamesMap[funcPair[1]], funcPair[1],
-                m))
-            if K == 10: break
+            K += 1 
+            #print("{0}({1}) --> {2}({3}) : {4}".format(
+            #    self.functionAddrNamesMap[funcPair[0]], funcPair[0],
+            #    self.functionAddrNamesMap[funcPair[1]], funcPair[1],
+            #    m))
+
+            print ("{0} {1}".format(funcPair[0][2:], funcPair[1][2:]))
+            if K == topk: break
 
 
 
@@ -76,22 +89,26 @@ class InstrumentDataAnalyzer:
     def findChildMetric(self, cctNode):
         assert(len(cctNode.children) == 1)
         curNode = cctNode.children[0]
-        while len(curNode.metrics) == 0:
+        while self.metric_id not in curNode.metrics:
             assert(len(curNode.children) == 1)
             curNode = curNode.children[0]
-        return curNode.metrics[0]
+        return curNode.metrics[self.metric_id]
 
 
 
 
 def main():
     if len(sys.argv) > 1:
-        print ("reading: ", sys.argv[1])
+        #print ("reading: ", sys.argv[1])
         reader = HPCToolkitReader(sys.argv[1])
+        if len(sys.argv) > 2:
+            topk = int(sys.argv[2])
+        else:
+            topk = 10
         reader.create_graphframe()
 
         pgo = InstrumentDataAnalyzer(reader)
-        pgo.bottomUpViewForInstrumentation()
+        pgo.bottomUpViewForInstrumentation(topk)
 
 
     else:

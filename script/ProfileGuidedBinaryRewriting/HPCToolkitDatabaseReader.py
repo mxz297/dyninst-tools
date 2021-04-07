@@ -31,7 +31,7 @@ class Node:
             self.add_parent(parent)
         self.children = []
         self.metrics = {}
-        self.node_dict = None  
+        self.node_dict = None
 
     def add_parent(self, node):
         """ Adds a parent to this node's list of parents.
@@ -108,6 +108,7 @@ class HPCToolkitReader:
         self.loadmodule_table = next(root.iter('LoadModuleTable'))
         self.file_table = next(root.iter('FileTable'))
         self.procedure_table = next(root.iter('ProcedureTable'))
+        self.metric_table = next(root.iter('MetricTable'))
         self.metricdb_table = next(root.iter('MetricDBTable'))
         self.callpath_profile = next(root.iter('SecCallPathProfileData'))
 
@@ -140,7 +141,7 @@ class HPCToolkitReader:
             self.procedure_names[idx] = procedure.get('n')
             self.procedure_addr[self.procedure_names[idx]] = procedure.get('v')
 
-        for metric in (self.metricdb_table).iter('Metric'):
+        for metric in (self.metric_table).iter('Metric'):
             self.metric_names[metric.get('i')] = metric.get('n')
 
         for metric in (self.metricdb_table).iter('MetricDB'):
@@ -220,7 +221,7 @@ class HPCToolkitReader:
                 line = xml_node.get('l')
                 self.parse_xml_node(xml_child, nid, line, hnode, callpath)
             else:
-                mid = int(xml_child.get('n'))
+                mid = xml_child.get('n')
                 val = float(xml_child.get('v'))
                 hnode.add_metric(mid, val)
 
