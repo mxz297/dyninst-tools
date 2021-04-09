@@ -86,7 +86,7 @@ void LoopCloneOptimizer::instrument() {
         l->getContainedLoops(containedLoops);
         bool innerLoopInstrumented = false;
         for (auto innerLoop : containedLoops) {
-            if (cloneLoops.find(innerLoop) == cloneLoops.end()) {
+            if (cloneLoops.find(innerLoop) != cloneLoops.end()) {
                 innerLoopInstrumented = true;
                 break;
             }
