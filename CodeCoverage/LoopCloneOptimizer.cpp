@@ -33,15 +33,13 @@ LoopCloneOptimizer::LoopCloneOptimizer(
     BPatch_function* bf,
     std::set<BPatch_basicBlock*> & blocks
 ): instBlocks(blocks) {
-    f = Dyninst::PatchAPI::convert(bf);
-
+    f = Dyninst::PatchAPI::convert(bf);    
     for (auto b : f->blocks()) {
         origBlockMap[b->start()] = b;
     }
 }
 
 void LoopCloneOptimizer::instrument() {
-
     for (auto b : instBlocks) {
         CoverageSnippet::Ptr coverage = boost::static_pointer_cast<CoverageSnippet>(
             threadLocalMemory ?
@@ -58,7 +56,9 @@ void LoopCloneOptimizer::instrument() {
     }
 
     vector<PatchLoop*> loops;
-    set<PatchLoop*> cloneLoops;    
+    set<PatchLoop*> cloneLoops;
+    set<PatchBlock*> coveredBlocks;
+
     f->getLoops(loops);
     for (auto l : loops) {
         bool inPGOFile = false;
@@ -82,18 +82,28 @@ void LoopCloneOptimizer::instrument() {
         }
         if (instrumentedBlockCnt > LIMIT) continue;
 
-        vector<PatchLoop*> containedLoops;
-        l->getContainedLoops(containedLoops);
-        bool innerLoopInstrumented = false;
-        for (auto innerLoop : containedLoops) {
-            if (cloneLoops.find(innerLoop) != cloneLoops.end()) {
-                innerLoopInstrumented = true;
+        bool containClonedBlocks = false;
+        for (auto b : blocks) {
+            if (coveredBlocks.find(b) != coveredBlocks.end()) {
+                containClonedBlocks = true;
                 break;
             }
         }
-        if (innerLoopInstrumented) continue;
+        if (containClonedBlocks) continue;
 
+        for (auto b: blocks) {
+            coveredBlocks.insert(b);
+        }
         cloneLoops.insert(l);
+
+        printf("Clone loop %p with entries", l);
+        for (auto b : entries) {
+            printf(" [%lx, %lx)", b->start(), b->end());
+        }
+        printf("\n");
+        for (auto b : blocks) {
+            printf("\t[%lx, %lx)\n", b->start(), b->end());
+        }
     }
 
     for (auto l : cloneLoops) {
