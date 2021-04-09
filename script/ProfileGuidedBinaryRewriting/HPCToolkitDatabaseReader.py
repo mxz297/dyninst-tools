@@ -190,7 +190,7 @@ class HPCToolkitReader:
             node_dict = self.create_node_dict(nid, graph_root,
                 self.procedure_names[root.get('n')], 'PF',
                 self.src_files[root.get('f')], root.get('l'),
-                self.load_modules[root.get('lm')])
+                self.load_modules[root.get('lm')], "0")
 
             self.node_dicts.append(node_dict)
             list_roots.append(graph_root)
@@ -245,22 +245,28 @@ class HPCToolkitReader:
             node_callpath.append(name)
             hnode = Node(nid, tuple(node_callpath), hparent)
 
+            if name in self.procedure_addr:
+                addr = self.procedure_addr[name]
+            else:
+                addr = "0"
+
             node_dict = self.create_node_dict(nid, hnode, name, xml_tag,
                 self.src_files[src_file], line,
-                self.load_modules[xml_node.get('lm')])
+                self.load_modules[xml_node.get('lm')], addr
+                )
 
         elif xml_tag == 'L':
             # loop
             src_file = xml_node.get('f')
             line = xml_node.get('l')
             addr = xml_node.get('v')
-            name = 'Loop@' + (self.src_files[src_file]).rpartition('/')[2] + ':' + line + ":" + addr
+            name = 'Loop@' + (self.src_files[src_file]).rpartition('/')[2] + ':' + line 
 
             node_callpath = parent_callpath
             node_callpath.append(name)
             hnode = Node(nid, tuple(node_callpath), hparent)
             node_dict = self.create_node_dict(nid, hnode, name, xml_tag,
-                self.src_files[src_file], line, None)
+                self.src_files[src_file], line, None, addr)
 
         elif xml_tag == 'S':
             # statement
@@ -272,10 +278,18 @@ class HPCToolkitReader:
             hnode = Node(nid, tuple(node_callpath), hparent)
             fname = src_file
             node_dict = self.create_node_dict(nid, hnode, name, xml_tag,
-                fname, line, None)
+                fname, line, None , "0")
+        elif xml_tag == 'C':
+            # call site
+            addr = xml_node.get('v')
+            name = "callsite " + addr
+            node_callpath = parent_callpath
+            node_callpath.append(name)
+            hnode = Node(nid, tuple(node_callpath), hparent)
+            node_dict = self.create_node_dict(nid, hnode, name, xml_tag,
+                "", "", None, addr)            
 
-
-        if xml_tag == 'C' or (xml_tag == 'Pr' and
+        if  (xml_tag == 'Pr' and
                               self.procedure_names[xml_node.get('n')] == ''):
             # do not add a node to the graph if the xml_tag is a callsite
             # or if its a procedure with no name
@@ -289,10 +303,10 @@ class HPCToolkitReader:
             self.parse_xml_children(xml_node, hnode, list(node_callpath))
 
     def create_node_dict(self, nid, hnode, name, node_type, src_file,
-            line, module):
+            line, module, addr):
         """ Create a dict with all the node attributes.
         """
-        node_dict = {'nid': nid, 'name': name, 'type': node_type, 'file': src_file, 'line': line, 'module': module, 'node': hnode}
+        node_dict = {'nid': nid, 'name': name, 'type': node_type, 'file': src_file, 'line': line, 'module': module, 'node': hnode, 'addr': addr}
         hnode.set_node_dict(node_dict)
 
         return node_dict

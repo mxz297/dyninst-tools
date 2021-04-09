@@ -11,15 +11,9 @@ class InstrumentDataAnalyzer:
 
         # Key is the function address
         self.functionOverhead = {}        
-        self.functionAddrNamesMap = {}
-
-        self.loopOverhead = {}
-
-        for name, addr in self.reader.procedure_addr.items():
-            if addr == "0": continue
-            self.functionAddrNamesMap[addr] = name
-
+        self.loopOverhead = {}        
         self.functionCallChainOverhead = {}
+
         self.metric_id = None
         for metric_id, metric_name in self.reader.metric_names.items():
             if metric_name.find("(E)") != -1:
@@ -29,6 +23,8 @@ class InstrumentDataAnalyzer:
                 self.metric_id = metric_id
                 break
 
+        self.metric_count_set = set()
+
     def bottomUpViewForInstrumentation(self, topk, resultType):
         if resultType == "function":
             self.summarizeFunction(topk)
@@ -36,6 +32,8 @@ class InstrumentDataAnalyzer:
             self.summarizeLoop(topk)
         elif resultType == "callpair":
             self.summarizeCallerCallee(topk)
+        elif resultType == "callsite":
+            self.summarizeCallSite(topk)
         else:
             print ("Unsupported analysis type", resultType)
 
@@ -121,13 +119,58 @@ class InstrumentDataAnalyzer:
             print ("{0} {1}".format(funcPair[0][2:], funcPair[1][2:]))
             if K == topk: break
 
+    def summarizeCallSite(self, topk):
+        for cctNodeDict in self.reader.node_dicts:
+            if cctNodeDict['name'] != self.instrumentationFrameName: continue
+            cctNode = cctNodeDict['node']
+            funcAddr, containingNode = self.findParentFunction(cctNode)
+            if funcAddr == "0":                
+            #    print ("callee addr 0",containingNode.node_dict)
+                continue
+
+            callerAddr, callerNode = self.findParentCallSite(containingNode)
+            if callerAddr == "0":                
+            #    print ("caller addr 0", callerNode.node_dict)
+                continue
+
+            callPairKey = (callerAddr, funcAddr)
+            val = self.findChildMetric(cctNode)
+            if callPairKey not in self.functionCallChainOverhead:
+                self.functionCallChainOverhead[callPairKey] = 0
+            self.functionCallChainOverhead[callPairKey] += val
+
+        funcCallList = []
+        for k , v in self.functionCallChainOverhead.items():
+            funcCallList.append((v, k))
+        funcCallList.sort(reverse=True)
+        K = 0
+        for m, funcPair in funcCallList:
+            K += 1 
+            #print("{0}({1}) --> {2}({3}) : {4}".format(
+            #    self.functionAddrNamesMap[funcPair[0]], funcPair[0],
+            #    self.functionAddrNamesMap[funcPair[1]], funcPair[1],
+            #    m))
+
+            print ("{0} {1}".format(funcPair[0][2:], funcPair[1][2:]))
+            if K == topk: break
+
     def findParentFunction(self, cctNode):
         assert(len(cctNode.parents) == 1)
         curNode = cctNode.parents[0]        
         while curNode.node_dict['type'] != 'PF':
             assert(len(curNode.parents) == 1)
             curNode = curNode.parents[0]
-        return self.reader.procedure_addr[curNode.node_dict['name']], curNode
+        return curNode.node_dict['addr'], curNode
+
+    def findParentCallSite(self, cctNode):
+        assert(len(cctNode.parents) == 1)
+        curNode = cctNode.parents[0]        
+        while curNode.node_dict['type'] != 'C' and len(curNode.parents) > 0:            
+            assert(len(curNode.parents) == 1)
+            curNode = curNode.parents[0]
+        if curNode.node_dict['type'] != 'C':
+            return '0' , curNode           
+        return curNode.node_dict['addr'], curNode
 
     def findParentLoop(self, cctNode):
         assert(len(cctNode.parents) == 1)
@@ -138,11 +181,11 @@ class InstrumentDataAnalyzer:
         if curNode.node_dict['type'] == 'PF':
             return '0', curNode
         else:
-            return curNode.node_dict['name'].split(":")[-1], curNode
+            return curNode.node_dict['addr'], curNode
 
 
     def findChildMetric(self, cctNode):
-        assert(len(cctNode.children) == 1)
+        #assert(len(cctNode.children) == 1)
         curNode = cctNode.children[0]
         while self.metric_id not in curNode.metrics:
             #assert(len(curNode.children) == 1)
@@ -160,7 +203,7 @@ def main():
         if len(sys.argv) > 3:
             resultType = sys.argv[3]
         else:
-            resultType = "function"
+            resultType = "callpair"
         reader.create_graphframe()
 
         pgo = InstrumentDataAnalyzer(reader)
