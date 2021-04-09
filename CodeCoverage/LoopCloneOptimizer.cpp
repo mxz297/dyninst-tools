@@ -12,10 +12,12 @@
 #include "PatchModifier.h"
 #include "PatchMgr.h"
 
+const int LIMIT = 10;
 
 extern bool threadLocalMemory;
 extern BPatch_binaryEdit *binEdit;
 extern int gsOffset;
+extern std::string pgo_filename;
 
 using Dyninst::PatchAPI::Snippet;
 using Dyninst::PatchAPI::Point;
@@ -56,8 +58,45 @@ void LoopCloneOptimizer::instrument() {
     }
 
     vector<PatchLoop*> loops;
-    f->getOuterLoops(loops);
+    set<PatchLoop*> cloneLoops;    
+    f->getLoops(loops);
     for (auto l : loops) {
+        bool inPGOFile = false;
+        std::vector<PatchBlock*> entries;
+        l->getLoopEntries(entries);
+        for (auto b: entries) {
+            if (loopMap.find(b->start()) != loopMap.end()) {
+                inPGOFile = true;
+                break;
+            }
+        }
+        if (!inPGOFile) continue;
+
+        int instrumentedBlockCnt = 0;
+        vector<PatchBlock*> blocks;
+        l->getLoopBasicBlocks(blocks);
+        for (auto b : blocks) {
+            if (snippetMap.find(b->start()) != snippetMap.end()) {
+                instrumentedBlockCnt += 1;
+            }
+        }
+        if (instrumentedBlockCnt > LIMIT) continue;
+
+        vector<PatchLoop*> containedLoops;
+        l->getContainedLoops(containedLoops);
+        bool innerLoopInstrumented = false;
+        for (auto innerLoop : containedLoops) {
+            if (cloneLoops.find(innerLoop) == cloneLoops.end()) {
+                innerLoopInstrumented = true;
+                break;
+            }
+        }
+        if (innerLoopInstrumented) continue;
+
+        cloneLoops.insert(l);
+    }
+
+    for (auto l : cloneLoops) {
         cloneALoop(l);
     }
 }
@@ -178,4 +217,20 @@ void LoopCloneOptimizer::makeOneCopy(int version, vector<PatchBlock*> &blocks) {
             assert(PatchModifier::redirect(e, newTarget));
         }
     }
+}
+
+std::map<uint64_t, int> LoopCloneOptimizer::loopMap;
+
+#include <iostream>
+#include <fstream>
+
+bool LoopCloneOptimizer::readPGOFile(const std::string& filename) {
+    std::ifstream infile(filename, std::fstream::in);
+    uint64_t loopAddr;
+    int order = 0;
+    while (infile >> std::hex >> loopAddr) {
+        order += 1;
+        loopMap[loopAddr] = order;
+    }
+    return true;
 }

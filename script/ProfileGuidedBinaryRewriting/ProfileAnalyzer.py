@@ -10,8 +10,10 @@ class InstrumentDataAnalyzer:
         self.instrumentationFrameName = "dyninst_instrumentation_op"
 
         # Key is the function address
-        self.functionOverhead = {}
+        self.functionOverhead = {}        
         self.functionAddrNamesMap = {}
+
+        self.loopOverhead = {}
 
         for name, addr in self.reader.procedure_addr.items():
             if addr == "0": continue
@@ -27,40 +29,83 @@ class InstrumentDataAnalyzer:
                 self.metric_id = metric_id
                 break
 
+    def bottomUpViewForInstrumentation(self, topk, resultType):
+        if resultType == "function":
+            self.summarizeFunction(topk)
+        elif resultType == "loop":
+            self.summarizeLoop(topk)
+        elif resultType == "callpair":
+            self.summarizeCallerCallee(topk)
+        else:
+            print ("Unsupported analysis type", resultType)
 
-    def bottomUpViewForInstrumentation(self, topk):
-        self.instOverhead = {}
+    def summarizeFunction(self, topk):                
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
             funcAddr, containingNode = self.findParentFunction(cctNode)
-            #if funcAddr == "0":
+            if funcAddr == "0":                
             #    print ("callee addr 0",containingNode.node_dict)
+                continue
+
             val = self.findChildMetric(cctNode)
             if funcAddr not in self.functionOverhead:
                 self.functionOverhead[funcAddr] = 0
             self.functionOverhead[funcAddr] += val
 
-            callerAddr, callerNode = self.findParentFunction(containingNode)
-            #if callerAddr == "0":
-            #    print ("caller addr 0", callerNode.node_dict)
+        funcList = []
+        for k , v in self.functionOverhead.items():
+            funcList.append((v, k ))
+        funcList.sort(reverse=True)
+        K = 0
+        for m, addr in funcList:
+            K += 1
+            print(addr[2:])
+            if K == topk: break
 
-            # This needs more investigation
-            if callerAddr == '0' or funcAddr == '0': continue
+    def summarizeLoop(self, topk):
+        for cctNodeDict in self.reader.node_dicts:
+            if cctNodeDict['name'] != self.instrumentationFrameName: continue
+            cctNode = cctNodeDict['node']
+            loopAddr, containingNode = self.findParentLoop(cctNode)
+            if loopAddr == "0":
+                continue
+
+            val = self.findChildMetric(cctNode)
+            if loopAddr not in self.loopOverhead:
+                self.loopOverhead[loopAddr] = 0
+            self.loopOverhead[loopAddr] += val
+
+        loopList = []
+        for k , v in self.loopOverhead.items():
+            loopList.append((v, k))
+        loopList.sort(reverse=True)
+        K = 0
+        for m, addr in loopList:
+            K += 1
+            print(addr[2:])
+            if K == topk: break
+
+    def summarizeCallerCallee(self, topk):
+        for cctNodeDict in self.reader.node_dicts:
+            if cctNodeDict['name'] != self.instrumentationFrameName: continue
+            cctNode = cctNodeDict['node']
+            funcAddr, containingNode = self.findParentFunction(cctNode)
+            if funcAddr == "0":                
+            #    print ("callee addr 0",containingNode.node_dict)
+                continue
+
+            callerAddr, callerNode = self.findParentFunction(containingNode)
+            if callerAddr == "0":                
+            #    print ("caller addr 0", callerNode.node_dict)
+                continue
 
             callPairKey = (callerAddr, funcAddr)
+            val = self.findChildMetric(cctNode)
             if callPairKey not in self.functionCallChainOverhead:
                 self.functionCallChainOverhead[callPairKey] = 0
             self.functionCallChainOverhead[callPairKey] += val
 
-        """
-        funcList = []
-        for k , v in self.functionOverhead.items():
-            funcList.append((v, k , self.functionNames[k]))
-        funcList.sort(reverse=True)
-        for m, addr, name in funcList:
-            print(name, addr, m)
-        """
         funcCallList = []
         for k , v in self.functionCallChainOverhead.items():
             funcCallList.append((v, k))
@@ -76,26 +121,33 @@ class InstrumentDataAnalyzer:
             print ("{0} {1}".format(funcPair[0][2:], funcPair[1][2:]))
             if K == topk: break
 
-
-
     def findParentFunction(self, cctNode):
         assert(len(cctNode.parents) == 1)
-        curNode = cctNode.parents[0]
+        curNode = cctNode.parents[0]        
         while curNode.node_dict['type'] != 'PF':
             assert(len(curNode.parents) == 1)
             curNode = curNode.parents[0]
         return self.reader.procedure_addr[curNode.node_dict['name']], curNode
 
+    def findParentLoop(self, cctNode):
+        assert(len(cctNode.parents) == 1)
+        curNode = cctNode.parents[0]        
+        while curNode.node_dict['type'] != 'PF' and curNode.node_dict['type'] != 'L':
+            assert(len(curNode.parents) == 1)
+            curNode = curNode.parents[0]
+        if curNode.node_dict['type'] == 'PF':
+            return '0', curNode
+        else:
+            return curNode.node_dict['name'].split(":")[-1], curNode
+
+
     def findChildMetric(self, cctNode):
         assert(len(cctNode.children) == 1)
         curNode = cctNode.children[0]
         while self.metric_id not in curNode.metrics:
-            assert(len(curNode.children) == 1)
+            #assert(len(curNode.children) == 1)
             curNode = curNode.children[0]
         return curNode.metrics[self.metric_id]
-
-
-
 
 def main():
     if len(sys.argv) > 1:
@@ -105,10 +157,14 @@ def main():
             topk = int(sys.argv[2])
         else:
             topk = 10
+        if len(sys.argv) > 3:
+            resultType = sys.argv[3]
+        else:
+            resultType = "function"
         reader.create_graphframe()
 
         pgo = InstrumentDataAnalyzer(reader)
-        pgo.bottomUpViewForInstrumentation(topk)
+        pgo.bottomUpViewForInstrumentation(topk, resultType)
 
 
     else:

@@ -253,7 +253,8 @@ class HPCToolkitReader:
             # loop
             src_file = xml_node.get('f')
             line = xml_node.get('l')
-            name = 'Loop@' + (self.src_files[src_file]).rpartition('/')[2] + ':' + line
+            addr = xml_node.get('v')
+            name = 'Loop@' + (self.src_files[src_file]).rpartition('/')[2] + ':' + line + ":" + addr
 
             node_callpath = parent_callpath
             node_callpath.append(name)

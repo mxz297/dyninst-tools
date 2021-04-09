@@ -16,6 +16,8 @@ namespace Dyninst {
 #include "CoverageSnippet.hpp"
 
 class LoopCloneOptimizer {
+    static std::map<uint64_t, int> loopMap;
+
     Dyninst::PatchAPI::PatchFunction* f;
     std::set<BPatch_basicBlock*> &instBlocks;
 
@@ -25,8 +27,10 @@ class LoopCloneOptimizer {
 
     void cloneALoop(Dyninst::PatchAPI::PatchLoop *l);
     void makeOneCopy(int, vector<Dyninst::PatchAPI::PatchBlock*> &);
+    
 
 public:
+    static bool readPGOFile(const std::string&);
     LoopCloneOptimizer(BPatch_function*, std::set<BPatch_basicBlock*> &);
     void instrument();
 };

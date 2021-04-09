@@ -33,10 +33,8 @@ int nops = 0;
 
 std::string output_filename;
 std::string input_filename;
+std::string pgo_filename;
 std::string mode = "none";
-
-
-std::set<std::string> functionsToOpt;
 
 void parse_command_line(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
@@ -81,8 +79,9 @@ void parse_command_line(int argc, char** argv) {
             continue;
         }
 
-        if (strcmp(argv[i], "--function-to-opt") == 0) {
-            functionsToOpt.insert(argv[i+1]);
+        if (strcmp(argv[i], "--pgo-file") == 0) {
+            pgo_filename = argv[i+1];
+            LoopCloneOptimizer::readPGOFile(pgo_filename);
             i += 1;
             continue;
         }
@@ -151,8 +150,8 @@ int main(int argc, char** argv) {
             }
             instBlocks.insert(b);
         }
-
-        if (functionsToOpt.find(pf->name()) != functionsToOpt.end()) {
+        
+        if (pgo_filename != "") {
             LoopCloneOptimizer lco(f, instBlocks);
             lco.instrument();
         } else {

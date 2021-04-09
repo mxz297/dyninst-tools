@@ -174,7 +174,7 @@ void CoverageLocationOpt::computeLoopNestLevelsImpl(PatchLoop *l , int level) {
 
 void CoverageLocationOpt::countInstrumentedBlocksInLoops(PatchFunction* f) {
     vector<PatchLoop*> loops;
-    f->getOuterLoops(loops);
+    f->getLoops(loops);
     for (auto l : loops) {
         vector<PatchBlock*> blocks;
         l->getLoopBasicBlocks(blocks);
@@ -184,10 +184,14 @@ void CoverageLocationOpt::countInstrumentedBlocksInLoops(PatchFunction* f) {
                 ib.emplace_back(b);
             }
         }
-        printf("Loop in function %s has %d instrumented blocks\n", f->name().c_str(), ib.size());
-        for (auto b : ib) {
-            printf("\t[%lx, %lx)\n", b->start(), b->end());
+        std::vector<PatchBlock*> entries;
+        l->getLoopEntries(entries);
+
+        printf("Loop in function %s at entry ", f->name().c_str());
+        for (auto b: entries) {
+            printf(" %lx,", b->start());
         }
+        printf("  has %d instrumented blocks\n", ib.size());
     }
 }
 
