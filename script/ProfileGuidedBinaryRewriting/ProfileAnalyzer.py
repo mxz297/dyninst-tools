@@ -25,19 +25,19 @@ class InstrumentDataAnalyzer:
 
         self.metric_count_set = set()
 
-    def bottomUpViewForInstrumentation(self, topk, resultType):
+    def bottomUpViewForInstrumentation(self, resultType):
         if resultType == "function":
-            self.summarizeFunction(topk)
+            self.summarizeFunction()
         elif resultType == "loop":
-            self.summarizeLoop(topk)
+            self.summarizeLoop()
         elif resultType == "callpair":
-            self.summarizeCallerCallee(topk)
+            self.summarizeCallerCallee()
         elif resultType == "callsite":
-            self.summarizeCallSite(topk)
+            self.summarizeCallSite()
         else:
             print ("Unsupported analysis type", resultType)
 
-    def summarizeFunction(self, topk):                
+    def summarizeFunction(self):
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
@@ -55,13 +55,10 @@ class InstrumentDataAnalyzer:
         for k , v in self.functionOverhead.items():
             funcList.append((v, k ))
         funcList.sort(reverse=True)
-        K = 0
         for m, addr in funcList:
-            K += 1
             print(addr[2:])
-            if K == topk: break
 
-    def summarizeLoop(self, topk):
+    def summarizeLoop(self):
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
@@ -78,13 +75,10 @@ class InstrumentDataAnalyzer:
         for k , v in self.loopOverhead.items():
             loopList.append((v, k))
         loopList.sort(reverse=True)
-        K = 0
         for m, addr in loopList:
-            K += 1
             print(addr[2:])
-            if K == topk: break
 
-    def summarizeCallerCallee(self, topk):
+    def summarizeCallerCallee(self):
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
@@ -108,18 +102,15 @@ class InstrumentDataAnalyzer:
         for k , v in self.functionCallChainOverhead.items():
             funcCallList.append((v, k))
         funcCallList.sort(reverse=True)
-        K = 0
         for m, funcPair in funcCallList:
-            K += 1 
             #print("{0}({1}) --> {2}({3}) : {4}".format(
             #    self.functionAddrNamesMap[funcPair[0]], funcPair[0],
             #    self.functionAddrNamesMap[funcPair[1]], funcPair[1],
             #    m))
 
-            print ("{0} {1}".format(funcPair[0][2:], funcPair[1][2:]))
-            if K == topk: break
+            print ("{0} {1} {2}".format(funcPair[0][2:], funcPair[1][2:], m))
 
-    def summarizeCallSite(self, topk):
+    def summarizeCallSite(self):
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
@@ -143,16 +134,13 @@ class InstrumentDataAnalyzer:
         for k , v in self.functionCallChainOverhead.items():
             funcCallList.append((v, k))
         funcCallList.sort(reverse=True)
-        K = 0
         for m, funcPair in funcCallList:
-            K += 1 
             #print("{0}({1}) --> {2}({3}) : {4}".format(
             #    self.functionAddrNamesMap[funcPair[0]], funcPair[0],
             #    self.functionAddrNamesMap[funcPair[1]], funcPair[1],
             #    m))
 
-            print ("{0} {1}".format(funcPair[0][2:], funcPair[1][2:]))
-            if K == topk: break
+            print ("{0} {1} {2}".format(funcPair[0][2:], funcPair[1][2:], m))
 
     def findParentFunction(self, cctNode):
         assert(len(cctNode.parents) == 1)
@@ -197,17 +185,13 @@ def main():
         #print ("reading: ", sys.argv[1])
         reader = HPCToolkitReader(sys.argv[1])
         if len(sys.argv) > 2:
-            topk = int(sys.argv[2])
-        else:
-            topk = 10
-        if len(sys.argv) > 3:
-            resultType = sys.argv[3]
+            resultType = sys.argv[2]
         else:
             resultType = "callpair"
         reader.create_graphframe()
 
         pgo = InstrumentDataAnalyzer(reader)
-        pgo.bottomUpViewForInstrumentation(topk, resultType)
+        pgo.bottomUpViewForInstrumentation(resultType)
 
 
     else:
