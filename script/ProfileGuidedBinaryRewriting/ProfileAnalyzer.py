@@ -5,44 +5,53 @@ class InstrumentDataAnalyzer:
     """ Analyze HPCToolkit database to find instrumentation bottleneck
     """
 
-    def __init__(self, reader):
-        self.reader = reader
+    def __init__(self, readers):
+        self.readers = readers
         self.instrumentationFrameName = "dyninst_instrumentation_op"
 
         # Key is the function address
-        self.functionOverhead = {}        
-        self.loopOverhead = {}        
+        self.functionOverhead = {}
+        self.loopOverhead = {}
         self.functionCallChainOverhead = {}
 
-        self.metric_id = None
-        for metric_id, metric_name in self.reader.metric_names.items():
-            if metric_name.find("(E)") != -1:
-                self.metric_id = metric_id
-        if self.metric_id is None:
-            for metric_id, metric_name in self.reader.metric_names.items():
-                self.metric_id = metric_id
-                break
-
-        self.metric_count_set = set()
-
     def bottomUpViewForInstrumentation(self, resultType):
+        for reader in self.readers:
+            self.reader = reader
+            self.metric_id = None
+            for metric_id, metric_name in self.reader.metric_names.items():
+                if metric_name.find("(E)") != -1:
+                    self.metric_id = metric_id
+            if self.metric_id is None:
+                for metric_id, metric_name in self.reader.metric_names.items():
+                    self.metric_id = metric_id
+                    break
+            if resultType == "function":
+                self.summarizeFunction()
+            elif resultType == "loop":
+                self.summarizeLoop()
+            elif resultType == "callpair":
+                self.summarizeCallerCallee()
+            elif resultType == "callsite":
+                self.summarizeCallSite()
+            else:
+                print ("Unsupported analysis type", resultType)
+                return
         if resultType == "function":
-            self.summarizeFunction()
+            self.printFunction()
         elif resultType == "loop":
-            self.summarizeLoop()
+            self.printLoop()
         elif resultType == "callpair":
-            self.summarizeCallerCallee()
+            self.printCallerCallee()
         elif resultType == "callsite":
-            self.summarizeCallSite()
-        else:
-            print ("Unsupported analysis type", resultType)
+            self.printCallSite()
+
 
     def summarizeFunction(self):
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
             funcAddr, containingNode = self.findParentFunction(cctNode)
-            if funcAddr == "0":                
+            if funcAddr == "0":
             #    print ("callee addr 0",containingNode.node_dict)
                 continue
 
@@ -51,6 +60,7 @@ class InstrumentDataAnalyzer:
                 self.functionOverhead[funcAddr] = 0
             self.functionOverhead[funcAddr] += val
 
+    def printFunction(self):
         funcList = []
         for k , v in self.functionOverhead.items():
             funcList.append((v, k ))
@@ -71,6 +81,7 @@ class InstrumentDataAnalyzer:
                 self.loopOverhead[loopAddr] = 0
             self.loopOverhead[loopAddr] += val
 
+    def printLoop(self):
         loopList = []
         for k , v in self.loopOverhead.items():
             loopList.append((v, k))
@@ -83,12 +94,12 @@ class InstrumentDataAnalyzer:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
             funcAddr, containingNode = self.findParentFunction(cctNode)
-            if funcAddr == "0":                
+            if funcAddr == "0":
             #    print ("callee addr 0",containingNode.node_dict)
                 continue
 
             callerAddr, callerNode = self.findParentFunction(containingNode)
-            if callerAddr == "0":                
+            if callerAddr == "0":
             #    print ("caller addr 0", callerNode.node_dict)
                 continue
 
@@ -98,6 +109,7 @@ class InstrumentDataAnalyzer:
                 self.functionCallChainOverhead[callPairKey] = 0
             self.functionCallChainOverhead[callPairKey] += val
 
+    def printCallerCallee(self):
         funcCallList = []
         for k , v in self.functionCallChainOverhead.items():
             funcCallList.append((v, k))
@@ -115,12 +127,12 @@ class InstrumentDataAnalyzer:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
             funcAddr, containingNode = self.findParentFunction(cctNode)
-            if funcAddr == "0":                
+            if funcAddr == "0":
             #    print ("callee addr 0",containingNode.node_dict)
                 continue
 
             callerAddr, callerNode = self.findParentCallSite(containingNode)
-            if callerAddr == "0":                
+            if callerAddr == "0":
             #    print ("caller addr 0", callerNode.node_dict)
                 continue
 
@@ -130,6 +142,7 @@ class InstrumentDataAnalyzer:
                 self.functionCallChainOverhead[callPairKey] = 0
             self.functionCallChainOverhead[callPairKey] += val
 
+    def printCallSite(self):
         funcCallList = []
         for k , v in self.functionCallChainOverhead.items():
             funcCallList.append((v, k))
@@ -144,7 +157,7 @@ class InstrumentDataAnalyzer:
 
     def findParentFunction(self, cctNode):
         assert(len(cctNode.parents) == 1)
-        curNode = cctNode.parents[0]        
+        curNode = cctNode.parents[0]
         while curNode.node_dict['type'] != 'PF':
             assert(len(curNode.parents) == 1)
             curNode = curNode.parents[0]
@@ -152,17 +165,17 @@ class InstrumentDataAnalyzer:
 
     def findParentCallSite(self, cctNode):
         assert(len(cctNode.parents) == 1)
-        curNode = cctNode.parents[0]        
-        while curNode.node_dict['type'] != 'C' and len(curNode.parents) > 0:            
+        curNode = cctNode.parents[0]
+        while curNode.node_dict['type'] != 'C' and len(curNode.parents) > 0:
             assert(len(curNode.parents) == 1)
             curNode = curNode.parents[0]
         if curNode.node_dict['type'] != 'C':
-            return '0' , curNode           
+            return '0' , curNode
         return curNode.node_dict['addr'], curNode
 
     def findParentLoop(self, cctNode):
         assert(len(cctNode.parents) == 1)
-        curNode = cctNode.parents[0]        
+        curNode = cctNode.parents[0]
         while curNode.node_dict['type'] != 'PF' and curNode.node_dict['type'] != 'L':
             assert(len(curNode.parents) == 1)
             curNode = curNode.parents[0]
@@ -181,16 +194,15 @@ class InstrumentDataAnalyzer:
         return curNode.metrics[self.metric_id]
 
 def main():
-    if len(sys.argv) > 1:
-        #print ("reading: ", sys.argv[1])
-        reader = HPCToolkitReader(sys.argv[1])
-        if len(sys.argv) > 2:
-            resultType = sys.argv[2]
-        else:
-            resultType = "callpair"
-        reader.create_graphframe()
+    if len(sys.argv) > 2:
+        resultType = sys.argv[-1]
+        readers = []
 
-        pgo = InstrumentDataAnalyzer(reader)
+        for path in sys.argv[1:-1]:
+            reader = HPCToolkitReader(path)
+            reader.create_graphframe()
+            readers.append(reader)
+        pgo = InstrumentDataAnalyzer(readers)
         pgo.bottomUpViewForInstrumentation(resultType)
 
 
