@@ -102,7 +102,8 @@ void LoopCloneOptimizer::instrument() {
         }
         printf("\n");
         for (auto b : blocks) {
-            printf("\t[%lx, %lx)\n", b->start(), b->end());
+            printf("\t[%lx, %lx)", b->start(), b->end());
+            if (snippetMap.find(b->start()) != snippetMap.end()) printf(", instrumented\n"); else printf("\n");
         }
     }
 
@@ -237,8 +238,9 @@ std::map<uint64_t, int> LoopCloneOptimizer::loopMap;
 bool LoopCloneOptimizer::readPGOFile(const std::string& filename) {
     std::ifstream infile(filename, std::fstream::in);
     uint64_t loopAddr;
+    double metric;
     int order = 0;
-    while (infile >> std::hex >> loopAddr) {
+    while (infile >> std::hex >> loopAddr >> metric) {
         order += 1;
         loopMap[loopAddr] = order;
     }

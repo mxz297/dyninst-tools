@@ -76,7 +76,7 @@ class InstrumentDataAnalyzer:
             loopList.append((v, k))
         loopList.sort(reverse=True)
         for m, addr in loopList:
-            print(addr[2:])
+            print(addr[2:], m)
 
     def summarizeCallerCallee(self):
         for cctNodeDict in self.reader.node_dicts:
