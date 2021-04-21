@@ -13,6 +13,7 @@ class InstrumentDataAnalyzer:
         self.functionOverhead = {}
         self.loopOverhead = {}
         self.functionCallChainOverhead = {}
+        self.unaccounted = 0
 
     def bottomUpViewForInstrumentation(self, resultType):
         for reader in self.readers:
@@ -45,7 +46,6 @@ class InstrumentDataAnalyzer:
         elif resultType == "callsite":
             self.printCallSite()
 
-
     def summarizeFunction(self):
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
@@ -66,7 +66,7 @@ class InstrumentDataAnalyzer:
             funcList.append((v, k ))
         funcList.sort(reverse=True)
         for m, addr in funcList:
-            print(addr[2:])
+            print(addr[2:], m)
 
     def summarizeLoop(self):
         for cctNodeDict in self.reader.node_dicts:
@@ -126,18 +126,20 @@ class InstrumentDataAnalyzer:
         for cctNodeDict in self.reader.node_dicts:
             if cctNodeDict['name'] != self.instrumentationFrameName: continue
             cctNode = cctNodeDict['node']
+            val = self.findChildMetric(cctNode)
             funcAddr, containingNode = self.findParentFunction(cctNode)
             if funcAddr == "0":
             #    print ("callee addr 0",containingNode.node_dict)
+                self.unaccounted += val
                 continue
 
             callerAddr, callerNode = self.findParentCallSite(containingNode)
             if callerAddr == "0":
             #    print ("caller addr 0", callerNode.node_dict)
+                self.unaccounted += val
                 continue
 
             callPairKey = (callerAddr, funcAddr)
-            val = self.findChildMetric(cctNode)
             if callPairKey not in self.functionCallChainOverhead:
                 self.functionCallChainOverhead[callPairKey] = 0
             self.functionCallChainOverhead[callPairKey] += val
@@ -194,6 +196,7 @@ class InstrumentDataAnalyzer:
         return curNode.metrics[self.metric_id]
 
 def main():
+    sys.setrecursionlimit(0x10000)
     if len(sys.argv) > 2:
         resultType = sys.argv[-1]
         readers = []
