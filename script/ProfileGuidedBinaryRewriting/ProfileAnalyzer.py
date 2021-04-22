@@ -13,6 +13,7 @@ class InstrumentDataAnalyzer:
         self.functionOverhead = {}
         self.loopOverhead = {}
         self.functionCallChainOverhead = {}
+        self.addressOverhead = {}
         self.unaccounted = 0
 
     def bottomUpViewForInstrumentation(self, resultType):
@@ -34,6 +35,8 @@ class InstrumentDataAnalyzer:
                 self.summarizeCallerCallee()
             elif resultType == "callsite":
                 self.summarizeCallSite()
+            elif resultType == "address":
+                self.summarizeAddress()
             else:
                 print ("Unsupported analysis type", resultType)
                 return
@@ -45,6 +48,8 @@ class InstrumentDataAnalyzer:
             self.printCallerCallee()
         elif resultType == "callsite":
             self.printCallSite()
+        elif resultType == "address":
+            self.printAddress()
 
     def summarizeFunction(self):
         for cctNodeDict in self.reader.node_dicts:
@@ -156,6 +161,29 @@ class InstrumentDataAnalyzer:
             #    m))
 
             print ("{0} {1} {2}".format(funcPair[0][2:], funcPair[1][2:], m))
+
+    def summarizeAddress(self):
+        for cctNodeDict in self.reader.node_dicts:
+            if cctNodeDict['name'] != self.instrumentationFrameName: continue
+            cctNode = cctNodeDict['node']
+            val = self.findChildMetric(cctNode)
+            callerAddr, callerNode = self.findParentCallSite(cctNode)
+            if callerAddr == "0":
+            #    print ("caller addr 0", callerNode.node_dict)
+                self.unaccounted += val
+                continue
+
+            if callerAddr not in self.addressOverhead:
+                self.addressOverhead[callerAddr] = 0
+            self.addressOverhead[callerAddr] += val
+
+    def printAddress(self):
+        addressList = []
+        for k , v in self.addressOverhead.items():
+            addressList.append((v, k))
+        addressList.sort(reverse=True)
+        for m, addr in addressList:            
+            print ("{0} {1}".format(addr[2:], m))
 
     def findParentFunction(self, cctNode):
         assert(len(cctNode.parents) == 1)
