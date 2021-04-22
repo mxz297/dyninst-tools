@@ -15,23 +15,27 @@ namespace Dyninst {
 #include "Snippet.h"
 #include "CoverageSnippet.hpp"
 
-class LoopCloneOptimizer {
-    static std::map<uint64_t, int> loopMap;
+class LoopCloneOptimizer {    
+    std::map<Dyninst::PatchAPI::PatchLoop*, int> loopSizeMap;
+    std::map<Dyninst::PatchAPI::PatchBlock*, Dyninst::PatchAPI::PatchLoop*> origBlockLoopMap;
 
     Dyninst::PatchAPI::PatchFunction* f;
-    std::set<BPatch_basicBlock*> &instBlocks;
+    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > &instBlocks;
 
     std::unordered_map<uint64_t, CoverageSnippet::Ptr> snippetMap;
     std::unordered_map<uint64_t, Dyninst::PatchAPI::PatchBlock*> origBlockMap;
     std::vector< std::map<Dyninst::PatchAPI::PatchBlock*, Dyninst::PatchAPI::PatchBlock* > > versionedCloneMap;
 
+    std::set<Dyninst::PatchAPI::PatchBlock*> blocksToClone;
+
+    void doLoopClone(Dyninst::PatchAPI::PatchFunction* f);
     void cloneALoop(Dyninst::PatchAPI::PatchLoop *l);
     void makeOneCopy(int, vector<Dyninst::PatchAPI::PatchBlock*> &);
     
 
 public:
     static bool readPGOFile(const std::string&);
-    LoopCloneOptimizer(BPatch_function*, std::set<BPatch_basicBlock*> &);
+    LoopCloneOptimizer(std::map<BPatch_function*, std::set<BPatch_basicBlock*> >&);
     void instrument();
 };
 

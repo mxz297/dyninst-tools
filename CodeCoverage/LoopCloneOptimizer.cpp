@@ -12,12 +12,21 @@
 #include "PatchModifier.h"
 #include "PatchMgr.h"
 
-const int LIMIT = 10;
-
 extern bool threadLocalMemory;
 extern BPatch_binaryEdit *binEdit;
 extern int gsOffset;
 extern std::string pgo_filename;
+extern int loop_clone_limit;
+extern double pgo_ratio;
+
+struct PGOBlock {
+    uint64_t addr;
+    double metric;
+    PGOBlock(uint64_t a, double m): addr(a), metric(m) {}
+};
+
+static std::vector<PGOBlock> pgoBlocks;
+static double totalMetrics = 0.0;
 
 using Dyninst::PatchAPI::Snippet;
 using Dyninst::PatchAPI::Point;
@@ -30,101 +39,101 @@ using Dyninst::PatchAPI::PatchMgr;
 using Dyninst::PatchAPI::CFGMaker;
 
 LoopCloneOptimizer::LoopCloneOptimizer(
-    BPatch_function* bf,
-    std::set<BPatch_basicBlock*> & blocks
-): instBlocks(blocks) {
-    f = Dyninst::PatchAPI::convert(bf);    
-    for (auto b : f->blocks()) {
-        origBlockMap[b->start()] = b;
+    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > & blocks
+): instBlocks(blocks) {    
+    for (auto & mapIt : instBlocks) {
+        f = Dyninst::PatchAPI::convert(mapIt.first);
+        for (auto b : f->blocks()) {
+            origBlockMap[b->start()] = b;
+        }
+        std::vector<PatchLoop*> loops;
+        f->getOuterLoops(loops);
+        for (auto l : loops) {
+            vector<PatchBlock*> blocks;
+            l->getLoopBasicBlocks(blocks);
+            int size = 0;
+            for (auto b : blocks) {
+                origBlockLoopMap[b] = l;
+                size += b->end() - b->start();
+            }
+            loopSizeMap[l] = size;
+        }
     }
+
+    double optimized_metrics = 0;
+    std::map<PatchLoop*, int> loopInstCount;
+    for (auto& pgoBlock : pgoBlocks) {
+        PatchBlock* b = origBlockMap[pgoBlock.addr];        
+        assert(b != nullptr);
+        printf("Examine block [%lx, %lx)", b->start(), b->end());
+        PatchLoop * l = origBlockLoopMap[b];
+        if (l == nullptr) {
+            printf(", skip due to not in any loop\n");
+            continue;
+        }
+        if (loopInstCount[l] < loop_clone_limit) {
+            loopInstCount[l] += 1;
+            printf(", ok to clone, loop size %d\n", loopSizeMap[l]);
+            optimized_metrics += pgoBlock.metric;
+            blocksToClone.insert(b);
+        } else {
+            printf(", skip doe to reach loop clone limit\n");
+        }
+        if (optimized_metrics > pgo_ratio * totalMetrics) break;
+    }
+    printf("Optimize %.2lf percent metrics\n", optimized_metrics * 100.0 / totalMetrics);  
 }
 
 void LoopCloneOptimizer::instrument() {
-    for (auto b : instBlocks) {
-        CoverageSnippet::Ptr coverage = boost::static_pointer_cast<CoverageSnippet>(
-            threadLocalMemory ?
-            ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet()) :
-            GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet()));
+    for (auto & mapIt : instBlocks) {
+        f = Dyninst::PatchAPI::convert(mapIt.first);   
+        for (auto b : mapIt.second) {
+            CoverageSnippet::Ptr coverage = boost::static_pointer_cast<CoverageSnippet>(
+                threadLocalMemory ?
+                ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet()) :
+                GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet()));
 
-        BPatch_point* bp = b->findEntryPoint();
-        assert(bp != nullptr);
+            BPatch_point* bp = b->findEntryPoint();
+            assert(bp != nullptr);
 
-        Point* p = Dyninst::PatchAPI::convert(bp, BPatch_callBefore);
-        assert(p != nullptr);
-        snippetMap[b->getStartAddress()] = coverage;
-        p->pushBack(coverage);
+            Point* p = Dyninst::PatchAPI::convert(bp, BPatch_callBefore);
+            assert(p != nullptr);
+            snippetMap[b->getStartAddress()] = coverage;
+            p->pushBack(coverage);
+        }
+        doLoopClone(f);
     }
+}
 
-    vector<PatchLoop*> loops;
+void LoopCloneOptimizer::doLoopClone(PatchFunction* f) {
     set<PatchLoop*> cloneLoops;
-    set<PatchBlock*> coveredBlocks;
-
-    f->getLoops(loops);
-    for (auto l : loops) {
-        bool inPGOFile = false;
-        std::vector<PatchBlock*> entries;
-        l->getLoopEntries(entries);
-        for (auto b: entries) {
-            if (loopMap.find(b->start()) != loopMap.end()) {
-                inPGOFile = true;
-                break;
-            }
-        }
-        if (!inPGOFile) continue;
-
-        int instrumentedBlockCnt = 0;
-        vector<PatchBlock*> blocks;
-        l->getLoopBasicBlocks(blocks);
-        for (auto b : blocks) {
-            if (snippetMap.find(b->start()) != snippetMap.end()) {
-                instrumentedBlockCnt += 1;
-            }
-        }
-        if (instrumentedBlockCnt > LIMIT) continue;
-
-        bool containClonedBlocks = false;
-        for (auto b : blocks) {
-            if (coveredBlocks.find(b) != coveredBlocks.end()) {
-                containClonedBlocks = true;
-                break;
-            }
-        }
-        if (containClonedBlocks) continue;
-
-        for (auto b: blocks) {
-            coveredBlocks.insert(b);
-        }
-        cloneLoops.insert(l);
-
-        printf("Clone loop %p with entries", l);
-        for (auto b : entries) {
-            printf(" [%lx, %lx)", b->start(), b->end());
-        }
-        printf("\n");
-        for (auto b : blocks) {
-            printf("\t[%lx, %lx)", b->start(), b->end());
-            if (snippetMap.find(b->start()) != snippetMap.end()) printf(", instrumented\n"); else printf("\n");
-        }
+    for (auto b : f->blocks()) {
+        if (blocksToClone.find(b) == blocksToClone.end()) continue;
+        cloneLoops.insert(origBlockLoopMap[b]);
     }
-
+    
     for (auto l : cloneLoops) {
         cloneALoop(l);
-    }
+    }        
 }
 
 void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
     vector<PatchBlock*> blocks;
     l->getLoopBasicBlocks(blocks);
-    vector<PatchBlock*> instumentedBlocks;
+    set<PatchBlock*> instumentedBlocks;
+    set<PatchBlock*> clonedBlocks;
     for (auto b : blocks) {
         if (snippetMap.find(b->start()) != snippetMap.end()) {
-            instumentedBlocks.emplace_back(b);
+            instumentedBlocks.insert(b);
+        }
+        if (blocksToClone.find(b) != blocksToClone.end()) {
+            clonedBlocks.insert(b);
         }
     }
-    if (instumentedBlocks.empty()) return;
+    if (clonedBlocks.empty()) return;
     versionedCloneMap.clear();
 
-    int cloneCopies = 1 << instumentedBlocks.size();
+    int cloneCopies = 1 << clonedBlocks.size();
 
     for (int i = 1; i < cloneCopies; ++i) {
         makeOneCopy(i, blocks);
@@ -132,7 +141,7 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
 
     for (int i = 0; i < cloneCopies; ++i) {
         int index = 0;
-        for (auto b : instumentedBlocks) {
+        for (auto b : clonedBlocks) {
             if (i & (1 << index)) {
                 index++;
                 continue;
@@ -157,18 +166,25 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
     PatchMgr::Ptr patcher = Dyninst::PatchAPI::convert(binEdit);
     for (int i = 1; i < cloneCopies; ++i) {
         int index = 0;
-        for (auto b : instumentedBlocks) {
+        for (auto b : clonedBlocks) {
             if (i & (1 << index)) {
                 index++;
                 continue;
-            }
-            int newVersion = i | (1 << index);
-            PatchBlock* instB = versionedCloneMap[newVersion - 1][b];
+            }            
+            PatchBlock* instB = versionedCloneMap[i - 1][b];
             Point* p = patcher->findPoint(Dyninst::PatchAPI::Location::BlockInstance(f, instB), Point::BlockEntry);
             assert(p);
             CoverageSnippet::Ptr snippet = snippetMap[b->start()];
             p->pushBack(snippet);
             index += 1;
+        }
+        for (auto b : instumentedBlocks) {
+            if (clonedBlocks.find(b) != clonedBlocks.end()) continue;
+            PatchBlock* instB = versionedCloneMap[i - 1][b];
+            Point* p = patcher->findPoint(Dyninst::PatchAPI::Location::BlockInstance(f, instB), Point::BlockEntry);
+            assert(p);
+            CoverageSnippet::Ptr snippet = snippetMap[b->start()];
+            p->pushBack(snippet);            
         }
     }
 }
@@ -230,19 +246,22 @@ void LoopCloneOptimizer::makeOneCopy(int version, vector<PatchBlock*> &blocks) {
     }
 }
 
-std::map<uint64_t, int> LoopCloneOptimizer::loopMap;
-
 #include <iostream>
 #include <fstream>
 
 bool LoopCloneOptimizer::readPGOFile(const std::string& filename) {
     std::ifstream infile(filename, std::fstream::in);
-    uint64_t loopAddr;
-    double metric;
-    int order = 0;
-    while (infile >> std::hex >> loopAddr >> metric) {
-        order += 1;
-        loopMap[loopAddr] = order;
+    uint64_t addr;
+    double metric;    
+    while (infile >> std::hex >> addr >> metric) {
+        addr -= 1;
+        pgoBlocks.emplace_back(PGOBlock(addr, metric));
+        totalMetrics += metric;
     }
+    std::sort(pgoBlocks.begin(), pgoBlocks.end(),
+        [] (const PGOBlock& a, const PGOBlock& b) {
+            return a.metric > b.metric;
+        }
+    );
     return true;
 }

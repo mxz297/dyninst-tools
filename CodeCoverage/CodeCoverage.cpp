@@ -30,6 +30,9 @@ bool threadLocalMemory = true;
 bool verbose = false;
 
 int nops = 0;
+int loop_clone_limit = 5;
+
+double pgo_ratio = 0.9;
 
 std::string output_filename;
 std::string input_filename;
@@ -86,6 +89,18 @@ void parse_command_line(int argc, char** argv) {
             continue;
         }
 
+        if (strcmp(argv[i], "--loop-clone-limit") == 0) {
+            loop_clone_limit = atoi(argv[i+1]);
+            i += 1;
+            continue;
+        }
+
+        if (strcmp(argv[i], "--pgo-ratio") == 0) {
+            pgo_ratio = strtod(argv[i+1], NULL);
+            i += 1;
+            continue;
+        }
+
         if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             exit(1);
@@ -124,6 +139,8 @@ int main(int argc, char** argv) {
     image = binEdit->getImage();
     std::vector<BPatch_function*>* funcs = image->getProcedures();
 
+    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > instBlocksMap;
+
     for (auto f : *funcs) {
         if (skipFunction(f)) continue;
         f->setLayoutOrder((uint64_t)(f->getBaseAddr()));
@@ -136,7 +153,7 @@ int main(int argc, char** argv) {
         }
         CoverageLocationOpt clo(pf, mode, verbose);
 
-        std::set<BPatch_basicBlock*> instBlocks;
+        std::set<BPatch_basicBlock*> &instBlocks = instBlocksMap[f];
         for (auto b: blocks) {
             PatchBlock *pb = Dyninst::PatchAPI::convert(b);
             if (!clo.needInstrumentation(pb->start())) {
@@ -150,17 +167,17 @@ int main(int argc, char** argv) {
             }
             instBlocks.insert(b);
         }
-        
-        if (pgo_filename != "") {
-            LoopCloneOptimizer lco(f, instBlocks);
-            lco.instrument();
-        } else {
+
+        if (pgo_filename == "") {
             // Baseline instrumentation
             for (auto b : instBlocks) {
                 InstrumentBlock(f, b);
             }
         }
-
+    }
+    if (pgo_filename != "") {
+        LoopCloneOptimizer lco(instBlocksMap);
+        lco.instrument();
     }
     binEdit->writeFile(output_filename.c_str());
 }
