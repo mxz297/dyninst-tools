@@ -39,10 +39,11 @@ using Dyninst::PatchAPI::PatchMgr;
 using Dyninst::PatchAPI::CFGMaker;
 
 LoopCloneOptimizer::LoopCloneOptimizer(
-    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > & blocks
-): instBlocks(blocks) {    
+    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > & blocks,
+    std::vector<BPatch_function*>& fs
+): instBlocks(blocks), funcs(fs) {
     for (auto & mapIt : instBlocks) {
-        f = Dyninst::PatchAPI::convert(mapIt.first);
+        PatchFunction* f = Dyninst::PatchAPI::convert(mapIt.first);
         for (auto b : f->blocks()) {
             origBlockMap[b->start()] = b;
         }
@@ -63,7 +64,7 @@ LoopCloneOptimizer::LoopCloneOptimizer(
     double optimized_metrics = 0;
     std::map<PatchLoop*, int> loopInstCount;
     for (auto& pgoBlock : pgoBlocks) {
-        PatchBlock* b = origBlockMap[pgoBlock.addr];        
+        PatchBlock* b = origBlockMap[pgoBlock.addr];
         assert(b != nullptr);
         printf("Examine block [%lx, %lx)", b->start(), b->end());
         PatchLoop * l = origBlockLoopMap[b];
@@ -81,13 +82,13 @@ LoopCloneOptimizer::LoopCloneOptimizer(
         }
         if (optimized_metrics > pgo_ratio * totalMetrics) break;
     }
-    printf("Optimize %.2lf percent metrics\n", optimized_metrics * 100.0 / totalMetrics);  
+    printf("Optimize %.2lf percent metrics\n", optimized_metrics * 100.0 / totalMetrics);
 }
 
 void LoopCloneOptimizer::instrument() {
-    for (auto & mapIt : instBlocks) {
-        f = Dyninst::PatchAPI::convert(mapIt.first);   
-        for (auto b : mapIt.second) {
+    for (auto bf : funcs) {
+        PatchFunction* f = Dyninst::PatchAPI::convert(bf);
+        for (auto b : instBlocks[bf]) {
             CoverageSnippet::Ptr coverage = boost::static_pointer_cast<CoverageSnippet>(
                 threadLocalMemory ?
                 ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet()) :
@@ -111,13 +112,13 @@ void LoopCloneOptimizer::doLoopClone(PatchFunction* f) {
         if (blocksToClone.find(b) == blocksToClone.end()) continue;
         cloneLoops.insert(origBlockLoopMap[b]);
     }
-    
+
     for (auto l : cloneLoops) {
-        cloneALoop(l);
-    }        
+        cloneALoop(f, l);
+    }
 }
 
-void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
+void LoopCloneOptimizer::cloneALoop(PatchFunction* f, PatchLoop *l) {
     vector<PatchBlock*> blocks;
     l->getLoopBasicBlocks(blocks);
     set<PatchBlock*> instumentedBlocks;
@@ -136,7 +137,7 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
     int cloneCopies = 1 << clonedBlocks.size();
 
     for (int i = 1; i < cloneCopies; ++i) {
-        makeOneCopy(i, blocks);
+        makeOneCopy(f, i, blocks);
     }
 
     for (int i = 0; i < cloneCopies; ++i) {
@@ -170,7 +171,7 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
             if (i & (1 << index)) {
                 index++;
                 continue;
-            }            
+            }
             PatchBlock* instB = versionedCloneMap[i - 1][b];
             Point* p = patcher->findPoint(Dyninst::PatchAPI::Location::BlockInstance(f, instB), Point::BlockEntry);
             assert(p);
@@ -184,12 +185,12 @@ void LoopCloneOptimizer::cloneALoop(PatchLoop *l) {
             Point* p = patcher->findPoint(Dyninst::PatchAPI::Location::BlockInstance(f, instB), Point::BlockEntry);
             assert(p);
             CoverageSnippet::Ptr snippet = snippetMap[b->start()];
-            p->pushBack(snippet);            
+            p->pushBack(snippet);
         }
     }
 }
 
-void LoopCloneOptimizer::makeOneCopy(int version, vector<PatchBlock*> &blocks) {
+void LoopCloneOptimizer::makeOneCopy(PatchFunction* f, int version, vector<PatchBlock*> &blocks) {
     // Clone all blocks in the loop
     std::map<PatchBlock*, PatchBlock*> cloneBlockMap;
     std::vector<PatchBlock*> newBlocks;
@@ -252,7 +253,7 @@ void LoopCloneOptimizer::makeOneCopy(int version, vector<PatchBlock*> &blocks) {
 bool LoopCloneOptimizer::readPGOFile(const std::string& filename) {
     std::ifstream infile(filename, std::fstream::in);
     uint64_t addr;
-    double metric;    
+    double metric;
     while (infile >> std::hex >> addr >> metric) {
         addr -= 1;
         pgoBlocks.emplace_back(PGOBlock(addr, metric));

@@ -11,6 +11,9 @@
 #include "Region.h"
 
 #include <cstring>
+#include <iostream>
+#include <fstream>
+
 
 #include "CoverageLocationOpt.hpp"
 #include "CoverageSnippet.hpp"
@@ -36,8 +39,20 @@ double pgo_ratio = 0.9;
 
 std::string output_filename;
 std::string input_filename;
-std::string pgo_filename;
+std::string pgo_address_filename;
+std::string pgo_call_filename;
 std::string mode = "none";
+
+std::vector< std::pair<Address, Address> > callpairs;
+
+void readPGOCallFile(std::string &filename) {
+    std::ifstream infile(filename, std::fstream::in);
+    uint64_t caller, callee;
+    double metric;
+    while (infile >> std::hex >> caller >> callee >> metric) {
+        callpairs.emplace_back(std::make_pair(caller, callee));
+    }
+}
 
 void parse_command_line(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
@@ -82,12 +97,20 @@ void parse_command_line(int argc, char** argv) {
             continue;
         }
 
-        if (strcmp(argv[i], "--pgo-file") == 0) {
-            pgo_filename = argv[i+1];
-            LoopCloneOptimizer::readPGOFile(pgo_filename);
+        if (strcmp(argv[i], "--pgo-address-file") == 0) {
+            pgo_address_filename = argv[i+1];
+            LoopCloneOptimizer::readPGOFile(pgo_address_filename);
             i += 1;
             continue;
         }
+
+        if (strcmp(argv[i], "--pgo-call-file") == 0) {
+            pgo_call_filename = argv[i+1];
+            readPGOCallFile(pgo_call_filename);
+            i += 1;
+            continue;
+        }
+
 
         if (strcmp(argv[i], "--loop-clone-limit") == 0) {
             loop_clone_limit = atoi(argv[i+1]);
@@ -131,17 +154,74 @@ void InstrumentBlock(BPatch_function *f, BPatch_basicBlock* b) {
     p->pushBack(coverage);
 }
 
+void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {
+    if (callpairs.empty()) return;
+    std::map<Address, std::vector<Address>* > addr_maps;
+    for (auto& pair : callpairs) {
+        Address &from = pair.first;
+        Address &to = pair.second;
+        if (from == to) continue;
+        auto from_it = addr_maps.find(from);
+        if (from_it == addr_maps.end()) {
+            std::vector<Address>* from_vec = new std::vector<Address>;
+            from_vec->push_back(from);
+            from_it = addr_maps.insert(make_pair(from, from_vec)).first;
+        }
+        auto to_it = addr_maps.find(to);
+        if (to_it == addr_maps.end()) {
+            from_it->second->push_back(to);
+        } else if (to_it->second != from_it->second) {
+            std::vector<Address>* to_vec = to_it->second;
+            from_it->second->insert(from_it->second->end(), to_vec->begin(), to_vec->end());
+            for (auto addr: *to_vec) {
+                addr_maps[addr] = from_it->second;
+            }
+            delete to_vec;
+        }
+    }
+    std::vector<Address> order;
+    set< std::vector<Address>* > processed;
+    for (auto it : addr_maps) {
+        if (processed.find(it.second) != processed.end()) continue;
+        processed.insert(it.second);
+        order.insert(order.end(), it.second->begin(), it.second->end());
+    }
+    std::map<Address, int> funcOrder;
+    int i = 0;
+    for (auto addr : order) {
+        funcOrder[addr] = i++;
+    }
+    sort(funcs.begin(), funcs.end(),
+        [&funcOrder] (BPatch_function* a, BPatch_function *b) {
+            Address addra = (Address)(a->getBaseAddr());
+            auto ita = funcOrder.find(addra);
+            int orderA;
+            if (ita == funcOrder.end()) orderA = 100000000; else orderA = ita->second;
+
+            Address addrb = (Address)(b->getBaseAddr());
+            auto itb = funcOrder.find(addrb);
+            int orderB;
+            if (itb == funcOrder.end()) orderB = 100000000; else orderB = itb->second;
+
+            if (orderA != orderB) return orderA < orderB;
+            return addra < addrb;
+        }
+    );
+}
+
 int main(int argc, char** argv) {
     parse_command_line(argc, argv);
     bpatch.setRelocateJumpTable(enableJumptableReloc);
     bpatch.setRelocateFunctionPointer(enableFuncPointerReloc);
     binEdit = bpatch.openBinary(input_filename.c_str());
     image = binEdit->getImage();
-    std::vector<BPatch_function*>* funcs = image->getProcedures();
+    std::vector<BPatch_function*>* origFuncs = image->getProcedures();
+    std::vector<BPatch_function*> funcs = *origFuncs;
+    determineInstrumentationOrder(funcs);
 
     std::map<BPatch_function*, std::set<BPatch_basicBlock*> > instBlocksMap;
 
-    for (auto f : *funcs) {
+    for (auto f : funcs) {
         if (skipFunction(f)) continue;
         f->setLayoutOrder((uint64_t)(f->getBaseAddr()));
         PatchFunction *pf = Dyninst::PatchAPI::convert(f);
@@ -168,15 +248,15 @@ int main(int argc, char** argv) {
             instBlocks.insert(b);
         }
 
-        if (pgo_filename == "") {
+        if (pgo_address_filename == "") {
             // Baseline instrumentation
             for (auto b : instBlocks) {
                 InstrumentBlock(f, b);
             }
         }
     }
-    if (pgo_filename != "") {
-        LoopCloneOptimizer lco(instBlocksMap);
+    if (pgo_address_filename != "") {
+        LoopCloneOptimizer lco(instBlocksMap, funcs);
         lco.instrument();
     }
     binEdit->writeFile(output_filename.c_str());
