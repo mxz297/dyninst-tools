@@ -14,7 +14,7 @@ using GraphAnalysis::MBGNode;
 CoverageLocationOpt::CoverageLocationOpt(PatchFunction* f, std::string mode, bool v) {
     verbose = v;
     realCode = true;
-    if (mode == "none") {
+    if (mode == "none" || f->exitBlocks().empty()) {
         for (auto b : f->blocks()) {
             instMap[b->start()] = true;
         }
@@ -23,13 +23,13 @@ CoverageLocationOpt::CoverageLocationOpt(PatchFunction* f, std::string mode, boo
     // convert function to the graph analysis graph
     SingleBlockGraph::Ptr cfg = std::make_shared<SingleBlockGraph>(f);
     if (verbose) {
-        printf("CFG\n");
+        fprintf(stderr, "CFG\n");
         cfg->Print(true);
     }
     // get the super block dominator graph
     MultiBlockGraph::Ptr sbdg = std::make_shared<MultiBlockGraph>(cfg);
     if (verbose) {
-        printf("SBDG\n");
+        fprintf(stderr, "SBDG\n");
         sbdg->Print(true);
     }
 
@@ -84,8 +84,18 @@ PatchBlock* CoverageLocationOpt::chooseSBRep(MBGNode::Ptr mbgn) {
     // Choose a block that has the lowest address
     PatchBlock *ret = nullptr;
     for (auto pb : mbgn->getPatchBlocks()) {
-        if (ret == nullptr || ret->start() > pb->start()) {
+        if (ret == nullptr) {
             ret = pb;
+            continue;
+        }
+        if (realCode) {
+            if (ret->start() > pb->start()) {
+                ret = pb;
+            }
+        } else {
+            if ((uint64_t)ret > (uint64_t)pb) {
+                ret = pb;
+            }
         }
     }
     return ret;

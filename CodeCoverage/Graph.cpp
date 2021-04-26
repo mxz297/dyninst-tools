@@ -51,21 +51,21 @@ void Node::clearDominatorInfo(Node::Ptr in) {
 
 void Node::Print(bool realCode) {
     PrintNodeData(realCode);
-    printf("\n\tout edges:");
+    fprintf(stderr, "\n\tout edges:");
     for (auto& n : outEdgeList()) {
-        printf(" ");
+        fprintf(stderr, " ");
         n->PrintNodeData(realCode);
     }
-    printf("\n\tin edges:");
+    fprintf(stderr, "\n\tin edges:");
     for (auto& n : inEdgeList()) {
-        printf(" ");
+        fprintf(stderr, " ");
         n->PrintNodeData(realCode);
     }
-    printf("\n");
+    fprintf(stderr, "\n");
 }
 
 void Node::PrintNodeData(bool) {
-    printf("Node<%p>", this);
+    fprintf(stderr, "Node<%p>", this);
 }
 
 void Graph::addNode(Node::Ptr n) {
@@ -187,7 +187,7 @@ void Graph::link(Node::Ptr v, Node::Ptr w) {
             s->child = s->child->child;
         } else {
             s->child->size = s->size;
-            assert(s->child->ancestor != s);
+            //assert(s->child->ancestor != s);
             s->ancestor = s->child;
             s = s->child;
         }

@@ -25,15 +25,15 @@ bool MBGNode::hasSCDGEdge(MBGNode::Ptr target, SingleBlockGraph::Ptr cfg) {
 }
 
 void MBGNode::PrintNodeData(bool realCode) {
-    printf("MBGNode<");
+    fprintf(stderr, "MBGNode<");
     for (auto &b : getPatchBlocks()) {
         if (realCode) {
-            printf("[%lx, %lx),", b->start(), b->end());
+            fprintf(stderr, "[%lx, %lx),", b->start(), b->end());
         } else {
-            printf("%p,", b);
+            fprintf(stderr, "%p,", b);
         }
     }
-    printf(">");
+    fprintf(stderr, ">");
 }
 
 MultiBlockGraph::MultiBlockGraph(SingleBlockGraph::Ptr cfg) {

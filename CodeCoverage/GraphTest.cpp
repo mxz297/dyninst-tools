@@ -26,20 +26,20 @@ int main(int argc, char** argv) {
     }
     cfg->addEntry(cfg->lookupNode((PatchBlock*)1));
     cfg->addExit(cfg->lookupNode((PatchBlock*)n));
-    printf("CFG\n");
+    fprintf(stderr, "CFG\n");
     cfg->Print(false);
 
     SingleBlockGraph::Ptr dominatorGraph = cfg->buildDominatorGraph();
-    printf("Dominator Graph\n");
+    fprintf(stderr, "Dominator Graph\n");
     dominatorGraph->Print(false);
 
     MultiBlockGraph::Ptr sbdg = std::make_shared<MultiBlockGraph>(cfg);
-    printf("Superblock Dominator Graph\n");
+    fprintf(stderr, "Superblock Dominator Graph\n");
     sbdg->Print(false);
 
     CoverageLocationOpt clo(cfg, sbdg, std::string("exact"));
-    printf("Blocks to instrument for exact coverage\n");
+    fprintf(stderr, "Blocks to instrument for exact coverage\n");
     for (int i = 1; i <= n; ++i) {
-        if (clo.needInstrumentation(i)) printf("\t <%d>\n", i);
+        if (clo.needInstrumentation(i)) fprintf(stderr, "\t <%d>\n", i);
     }
 }

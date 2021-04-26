@@ -154,8 +154,7 @@ void InstrumentBlock(BPatch_function *f, BPatch_basicBlock* b) {
     p->pushBack(coverage);
 }
 
-void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {
-    if (callpairs.empty()) return;
+void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {    
     std::map<Address, std::vector<Address>* > addr_maps;
     for (auto& pair : callpairs) {
         Address &from = pair.first;
@@ -260,4 +259,5 @@ int main(int argc, char** argv) {
         lco.instrument();
     }
     binEdit->writeFile(output_filename.c_str());
+    printf("Finishing instrumentation %d functions\n", funcs.size());
 }

@@ -11,9 +11,9 @@ SBGNode::SBGNode(Dyninst::PatchAPI::PatchBlock* b): block(b) {}
 
 void SBGNode::PrintNodeData(bool realCode) {
     if (realCode) {
-        printf("SBGNode<%p:[%lx, %lx)>", block, block->start(), block->end());
+        fprintf(stderr, "SBGNode<%p:[%lx, %lx)>", block, block->start(), block->end());
     } else {
-        printf("SBGNode<%p>", block);
+        fprintf(stderr, "SBGNode<%p>", block);
     }
 }
 
@@ -23,7 +23,7 @@ static bool skipEdge(PatchEdge* e) {
     return false;
 }
 
-SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
+SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {    
     // Create all nodes
     for (auto b : f->blocks()) {
         SBGNode::Ptr n = std::make_shared<SBGNode>(b);
@@ -35,11 +35,11 @@ SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
     SBGNode::Ptr n = nodeMap[f->entry()];
     addEntry(n);
 
-    // Add exits
-    for (auto b : f->exitBlocks()) {
+    // Add exits    
+    for (auto b : f->exitBlocks()) {        
         SBGNode::Ptr n = nodeMap[b];
         addExit(n);
-    }
+    }    
 
     // Create edges
     for (auto b: f->blocks()) {
