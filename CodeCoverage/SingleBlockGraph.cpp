@@ -23,7 +23,9 @@ static bool skipEdge(PatchEdge* e) {
     return false;
 }
 
-SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {    
+Dyninst::PatchAPI::PatchBlock* SingleBlockGraph::sinkBlock = nullptr;
+
+SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
     // Create all nodes
     for (auto b : f->blocks()) {
         SBGNode::Ptr n = std::make_shared<SBGNode>(b);
@@ -35,11 +37,21 @@ SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
     SBGNode::Ptr n = nodeMap[f->entry()];
     addEntry(n);
 
-    // Add exits    
-    for (auto b : f->exitBlocks()) {        
+    // Add a virtual exit using a sink block
+    if (sinkBlock == nullptr) {
+        Dyninst::ParseAPI::Block *sink = new Dyninst::ParseAPI::Block(f->obj()->co(), nullptr, std::numeric_limits<uint64_t>::max());
+        sinkBlock = new PatchBlock(sink, f->obj());
+    }
+    SBGNode::Ptr ve = std::make_shared<SBGNode>(sinkBlock);
+    addSBGNode(ve);
+    addExit(ve);
+
+    // Connect CFG exits to virtual exit
+    for (auto b : f->exitBlocks()) {
         SBGNode::Ptr n = nodeMap[b];
-        addExit(n);
-    }    
+        n->addOutEdge(ve);
+        ve->addInEdge(n);
+    }
 
     // Create edges
     for (auto b: f->blocks()) {

@@ -28,6 +28,7 @@ private:
 
 class SingleBlockGraph : public Graph {
     std::unordered_map<Dyninst::PatchAPI::PatchBlock*, SBGNode::Ptr> nodeMap;
+    static Dyninst::PatchAPI::PatchBlock* sinkBlock;
 public:
     using Ptr = std::shared_ptr<SingleBlockGraph>;
     SingleBlockGraph(Dyninst::PatchAPI::PatchFunction*);

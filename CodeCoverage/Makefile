@@ -3,7 +3,7 @@ CXXFLAGS = -g -Wall -std=c++11 -O2
 INC = -I$(DYNINST_ROOT)/include
 LIB = -L$(DYNINST_ROOT)/lib
 DEP = -ldyninstAPI -lpatchAPI -lcommon -lsymtabAPI -linstructionAPI \
-		-lboost_system -ltbbmalloc -ltbbmalloc_proxy
+		-lparseAPI -lboost_system -ltbbmalloc -ltbbmalloc_proxy
 
 COVERAGE_SRC = CodeCoverage.cpp \
 	CoverageSnippet.cpp \

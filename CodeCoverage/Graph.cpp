@@ -103,7 +103,6 @@ void Graph::dominatorTree(EdgeList& elist) {
 void Graph::postDominatorTree(EdgeList& elist) {
     // Initialize states
     initializeDominatorInfo();
-
     for (auto& n: exits) {
         DFS(n, TraversalDirection::Reverse);
     }
@@ -187,7 +186,7 @@ void Graph::link(Node::Ptr v, Node::Ptr w) {
             s->child = s->child->child;
         } else {
             s->child->size = s->size;
-            //assert(s->child->ancestor != s);
+            assert(s->child->ancestor != s);
             s->ancestor = s->child;
             s = s->child;
         }
