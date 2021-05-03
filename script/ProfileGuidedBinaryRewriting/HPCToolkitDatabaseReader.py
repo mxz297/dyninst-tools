@@ -249,6 +249,8 @@ class HPCToolkitReader:
                 addr = self.procedure_addr[name]
             else:
                 addr = "0"
+            if addr == "0" and name[:4] == "targ":
+                addr = "0x" + name[4:]
 
             node_dict = self.create_node_dict(nid, hnode, name, xml_tag,
                 self.src_files[src_file], line,
@@ -260,7 +262,7 @@ class HPCToolkitReader:
             src_file = xml_node.get('f')
             line = xml_node.get('l')
             addr = xml_node.get('v')
-            name = 'Loop@' + (self.src_files[src_file]).rpartition('/')[2] + ':' + line 
+            name = 'Loop@' + (self.src_files[src_file]).rpartition('/')[2] + ':' + line
 
             node_callpath = parent_callpath
             node_callpath.append(name)
@@ -287,7 +289,7 @@ class HPCToolkitReader:
             node_callpath.append(name)
             hnode = Node(nid, tuple(node_callpath), hparent)
             node_dict = self.create_node_dict(nid, hnode, name, xml_tag,
-                "", "", None, addr)            
+                "", "", None, addr)
 
         if  (xml_tag == 'Pr' and
                               self.procedure_names[xml_node.get('n')] == ''):

@@ -182,7 +182,7 @@ class InstrumentDataAnalyzer:
         for k , v in self.addressOverhead.items():
             addressList.append((v, k))
         addressList.sort(reverse=True)
-        for m, addr in addressList:            
+        for m, addr in addressList:
             print ("{0} {1}".format(addr[2:], m))
 
     def findParentFunction(self, cctNode):
@@ -220,6 +220,7 @@ class InstrumentDataAnalyzer:
         curNode = cctNode.children[0]
         while self.metric_id not in curNode.metrics:
             #assert(len(curNode.children) == 1)
+            if len(curNode.children) == 0: return 0.0
             curNode = curNode.children[0]
         return curNode.metrics[self.metric_id]
 
