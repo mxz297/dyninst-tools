@@ -5,7 +5,7 @@
 extern int nops;
 extern BPatch_binaryEdit *binEdit;
 
-static int gsOffset = 0;
+int gsOffset = 0;
 
 void CoverageSnippet::print() {
     printf("CoverageSnippet");

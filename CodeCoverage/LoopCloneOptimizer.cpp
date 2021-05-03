@@ -12,6 +12,9 @@
 #include "PatchModifier.h"
 #include "PatchMgr.h"
 
+#include "slicing.h"
+#include "Graph.h"
+
 extern bool threadLocalMemory;
 extern BPatch_binaryEdit *binEdit;
 extern int gsOffset;
@@ -37,11 +40,42 @@ using Dyninst::PatchAPI::PatchEdge;
 using Dyninst::PatchAPI::PatchModifier;
 using Dyninst::PatchAPI::PatchMgr;
 using Dyninst::PatchAPI::CFGMaker;
+using Dyninst::Address;
+
+static bool CheckJumpTableOutside(PatchFunction* f, PatchLoop* l) {
+    vector<PatchBlock*> blocks;
+    l->getLoopBasicBlocks(blocks);
+
+    std::set<Address> loopBlockAddr;
+    for (auto b: blocks) {
+        loopBlockAddr.insert(b->start());
+    }
+
+    for (auto b : blocks) {
+        const auto jit = f->getJumpTableMap().find(b);
+        if (jit == f->getJumpTableMap().end()) continue;
+        const PatchFunction::PatchJumpTableInstance& pjti = jit->second;
+
+        Dyninst::Graph::Ptr g = pjti.formatSlice;
+        Dyninst::NodeIterator nbegin, nend;
+        g->allNodes(nbegin, nend);
+        for (; nbegin != nend; ++nbegin) {
+            if ((*nbegin)->addr() == 0) continue;
+            Dyninst::SliceNode::Ptr cur = boost::static_pointer_cast<Dyninst::SliceNode>(*nbegin);
+            Address blockStart = cur->block()->start();
+            if (loopBlockAddr.find(blockStart) == loopBlockAddr.end()) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 
 LoopCloneOptimizer::LoopCloneOptimizer(
     std::map<BPatch_function*, std::set<BPatch_basicBlock*> > & blocks,
     std::vector<BPatch_function*>& fs
 ): instBlocks(blocks), funcs(fs) {
+    std::set<PatchLoop*> containJumpTableOutside;
     for (auto & mapIt : instBlocks) {
         PatchFunction* f = Dyninst::PatchAPI::convert(mapIt.first);
         for (auto b : f->blocks()) {
@@ -50,6 +84,9 @@ LoopCloneOptimizer::LoopCloneOptimizer(
         std::vector<PatchLoop*> loops;
         f->getOuterLoops(loops);
         for (auto l : loops) {
+            if (CheckJumpTableOutside(f, l)) {
+                containJumpTableOutside.insert(l);
+            }
             vector<PatchBlock*> blocks;
             l->getLoopBasicBlocks(blocks);
             int size = 0;
@@ -64,12 +101,16 @@ LoopCloneOptimizer::LoopCloneOptimizer(
     double optimized_metrics = 0;
     std::map<PatchLoop*, int> loopInstCount;
     for (auto& pgoBlock : pgoBlocks) {
+        if (origBlockMap.find(pgoBlock.addr) == origBlockMap.end()) continue;
         PatchBlock* b = origBlockMap[pgoBlock.addr];
-        assert(b != nullptr);
         printf("Examine block [%lx, %lx)", b->start(), b->end());
         PatchLoop * l = origBlockLoopMap[b];
         if (l == nullptr) {
             printf(", skip due to not in any loop\n");
+            continue;
+        }
+        if (containJumpTableOutside.find(l) != containJumpTableOutside.end()) {
+            printf(", skip due to jump table computation outside loop\n");
             continue;
         }
         if (loopInstCount[l] < loop_clone_limit) {
@@ -78,7 +119,7 @@ LoopCloneOptimizer::LoopCloneOptimizer(
             optimized_metrics += pgoBlock.metric;
             blocksToClone.insert(b);
         } else {
-            printf(", skip doe to reach loop clone limit\n");
+            printf(", skip due to reaching loop clone limit\n");
         }
         if (optimized_metrics > pgo_ratio * totalMetrics) break;
     }

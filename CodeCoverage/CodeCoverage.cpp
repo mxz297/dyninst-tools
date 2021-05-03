@@ -37,6 +37,8 @@ int loop_clone_limit = 5;
 
 double pgo_ratio = 0.9;
 
+extern int gsOffset;
+
 std::string output_filename;
 std::string input_filename;
 std::string pgo_address_filename;
@@ -154,7 +156,7 @@ void InstrumentBlock(BPatch_function *f, BPatch_basicBlock* b) {
     p->pushBack(coverage);
 }
 
-void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {    
+void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {
     std::map<Address, std::vector<Address>* > addr_maps;
     for (auto& pair : callpairs) {
         Address &from = pair.first;
@@ -260,4 +262,5 @@ int main(int argc, char** argv) {
     }
     binEdit->writeFile(output_filename.c_str());
     printf("Finishing instrumentation %d functions\n", funcs.size());
+    printf("Require %d bytes memory in instrumentation region\n", gsOffset);
 }
