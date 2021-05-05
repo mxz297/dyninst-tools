@@ -31,6 +31,8 @@ bool enableJumptableReloc = true;
 bool enableFuncPointerReloc = true;
 bool threadLocalMemory = true;
 bool verbose = false;
+bool emptyInst = false;
+bool enableProfile = false;
 
 int nops = 0;
 int loop_clone_limit = 5;
@@ -126,6 +128,16 @@ void parse_command_line(int argc, char** argv) {
             continue;
         }
 
+        if (strcmp(argv[i], "--empty-inst") == 0) {
+            emptyInst = true;
+            continue;
+        }
+
+        if (strcmp(argv[i], "--enable-profile") == 0) {
+            enableProfile = true;
+            continue;
+        }
+
         if (argv[i][0] == '-') {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             exit(1);
@@ -138,6 +150,7 @@ static bool skipFunction(BPatch_function * f) {
     // Skip functions not in .text
     PatchFunction * patchFunc = Dyninst::PatchAPI::convert(f);
     ParseAPI::Function* parseFunc = patchFunc->function();
+    if (parseFunc->retstatus() == ParseAPI::NORETURN) return true;
     ParseAPI::SymtabCodeRegion* scr = static_cast<ParseAPI::SymtabCodeRegion*>(parseFunc->region());
     SymtabAPI::Region* r = scr->symRegion();
     return r->getRegionName() != ".text";
@@ -214,6 +227,7 @@ int main(int argc, char** argv) {
     parse_command_line(argc, argv);
     bpatch.setRelocateJumpTable(enableJumptableReloc);
     bpatch.setRelocateFunctionPointer(enableFuncPointerReloc);
+    bpatch.setWriteAdressMappingForProfile(enableProfile);
     binEdit = bpatch.openBinary(input_filename.c_str());
     image = binEdit->getImage();
     std::vector<BPatch_function*>* origFuncs = image->getProcedures();
@@ -221,9 +235,14 @@ int main(int argc, char** argv) {
     determineInstrumentationOrder(funcs);
 
     std::map<BPatch_function*, std::set<BPatch_basicBlock*> > instBlocksMap;
-
+    int skippedFunction = 0;
+    std::map<int, std::set<uint64_t> > functionDist;
+    std::set<Address> instrumented;
     for (auto f : funcs) {
-        if (skipFunction(f)) continue;
+        if (skipFunction(f)) {            
+            skippedFunction += 1;
+            continue;
+        }
         f->setLayoutOrder((uint64_t)(f->getBaseAddr()));
         PatchFunction *pf = Dyninst::PatchAPI::convert(f);
         BPatch_flowGraph* cfg = f->getCFG();
@@ -233,7 +252,7 @@ int main(int argc, char** argv) {
             printf("Function %s at %lx\n", pf->name().c_str(), pf->addr());
         }
         CoverageLocationOpt clo(pf, mode, verbose);
-
+        
         std::set<BPatch_basicBlock*> &instBlocks = instBlocksMap[f];
         for (auto b: blocks) {
             PatchBlock *pb = Dyninst::PatchAPI::convert(b);
@@ -247,7 +266,9 @@ int main(int argc, char** argv) {
                 printf("\tinstrument block [%lx, %lx)\n", pb->start(), pb->end());
             }
             instBlocks.insert(b);
+            instrumented.insert(pb->start());
         }
+        functionDist[instBlocks.size()].insert(pf->addr());
 
         if (pgo_address_filename == "") {
             // Baseline instrumentation
@@ -261,6 +282,16 @@ int main(int argc, char** argv) {
         lco.instrument();
     }
     binEdit->writeFile(output_filename.c_str());
-    printf("Finishing instrumentation %d functions\n", funcs.size());
+    printf("Finishing instrumentation %d functions, skipped %d functions\n", funcs.size() - skippedFunction, skippedFunction);
     printf("Require %d bytes memory in instrumentation region\n", gsOffset);
+
+    int sum = 0;
+    for (auto &rit : functionDist) {
+        printf("%d %d %lx\n", rit.first, rit.second.size(), *(rit.second.begin()));
+        sum += rit.first * rit.second.size();
+
+    }
+    printf("sum %d\n", sum);
+    printf("Unique block address instrumented %d\n", instrumented.size());
+
 }

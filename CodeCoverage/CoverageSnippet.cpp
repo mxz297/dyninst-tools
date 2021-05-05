@@ -4,6 +4,7 @@
 
 extern int nops;
 extern BPatch_binaryEdit *binEdit;
+extern bool emptyInst;
 
 int gsOffset = 0;
 
@@ -27,6 +28,7 @@ GlobalMemCoverageSnippet::GlobalMemCoverageSnippet() {
 bool GlobalMemCoverageSnippet::generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) {
     // Instruction template:
     // c6 05 37 e5 33 00 01    movb   $0x1,0x33e537(%rip)
+    if (emptyInst) return true;
     const int InstLength = 7;
     char code[InstLength];
     code[0] = 0xc6;
@@ -48,6 +50,11 @@ ThreadLocalMemCoverageSnippet::ThreadLocalMemCoverageSnippet() {
 }
 
 bool ThreadLocalMemCoverageSnippet::generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) {
+    if (emptyInst) {
+        unsigned char code[9] = {0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00};        
+        buf.copy(code, 9);
+        return true;
+    }
     // Instruction template:
     // 65 c6 04 25 87 01 00 00 01    movb   $0x1,%gs:0x187
     const int InstLength = 9;

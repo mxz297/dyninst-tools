@@ -1,4 +1,4 @@
-DYNINST_ROOT = /home/xm13/dyninst-pp/install
+DYNINST_ROOT = /home/xm13/projects/dyninst-dir/install
 CFLAGS = -g -O2 -std=c++11
 INC = -I$(DYNINST_ROOT)/include
 LIB = -L$(DYNINST_ROOT)/lib 
