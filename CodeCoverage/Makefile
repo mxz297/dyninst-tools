@@ -1,9 +1,9 @@
 CXX = g++
-CXXFLAGS = -g -Wall -std=c++11 -O2
+CXXFLAGS = -g -Wall -std=c++11 -O2 -fopenmp
 INC = -I$(DYNINST_ROOT)/include
 LIB = -L$(DYNINST_ROOT)/lib
 DEP = -ldyninstAPI -lpatchAPI -lcommon -lsymtabAPI -linstructionAPI \
-		-lparseAPI -lboost_system -ltbbmalloc -ltbbmalloc_proxy
+		-lparseAPI -lboost_system -ltbb -ltbbmalloc -ltbbmalloc_proxy -fopenmp		
 
 COVERAGE_SRC = CodeCoverage.cpp \
 	CoverageSnippet.cpp \

@@ -169,6 +169,31 @@ void InstrumentBlock(BPatch_function *f, BPatch_basicBlock* b) {
     p->pushBack(coverage);
 }
 
+void determineAnalysisOrder(std::vector<BPatch_function*> &funcs) {
+    std::map<Address, int> funcsBlockCount;
+    for (auto f: funcs) {
+        PatchFunction *pf = Dyninst::PatchAPI::convert(f);
+        int count = 0;
+        for (auto b : pf->blocks()) {
+            count += 1;
+        }
+        funcsBlockCount[pf->addr()] = count;
+    }
+
+    sort(funcs.begin(), funcs.end(),
+        [&funcsBlockCount] (BPatch_function* a, BPatch_function *b) {
+            Address addra = (Address)(a->getBaseAddr());
+            Address addrb = (Address)(b->getBaseAddr());
+            if (funcsBlockCount[addra] == funcsBlockCount[addrb]) {
+                return addra < addrb;
+            } else {
+                return funcsBlockCount[addra] > funcsBlockCount[addrb];
+            }
+        }
+    );
+
+}
+
 void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {
     std::map<Address, std::vector<Address>* > addr_maps;
     for (auto& pair : callpairs) {
@@ -231,19 +256,24 @@ int main(int argc, char** argv) {
     binEdit = bpatch.openBinary(input_filename.c_str());
     image = binEdit->getImage();
     std::vector<BPatch_function*>* origFuncs = image->getProcedures();
-    std::vector<BPatch_function*> funcs = *origFuncs;
-    determineInstrumentationOrder(funcs);
-
-    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > instBlocksMap;
-    int skippedFunction = 0;
-    std::map<int, std::set<uint64_t> > functionDist;
-    std::set<Address> instrumented;
-    for (auto f : funcs) {
-        if (skipFunction(f)) {            
-            skippedFunction += 1;
+    std::vector<BPatch_function*> funcs;
+    for (auto f : *origFuncs) {
+        if (skipFunction(f)) {
             continue;
         }
-        f->setLayoutOrder((uint64_t)(f->getBaseAddr()));
+        f->setLayoutOrder((uint64_t)(f->getBaseAddr()));        
+        // BPatch_flowGraph cannot be constructed in parallel;
+        f->getCFG();
+        funcs.emplace_back(f);
+    }
+    
+    determineAnalysisOrder(funcs);
+
+    tbb::concurrent_hash_map<BPatch_function*, std::set<BPatch_basicBlock*> > concurInstBlocksMap;
+    size_t totalFunc = funcs.size();
+    #pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < totalFunc; ++i) {
+        auto f = funcs[i];
         PatchFunction *pf = Dyninst::PatchAPI::convert(f);
         BPatch_flowGraph* cfg = f->getCFG();
         std::set<BPatch_basicBlock*> blocks;
@@ -252,8 +282,10 @@ int main(int argc, char** argv) {
             printf("Function %s at %lx\n", pf->name().c_str(), pf->addr());
         }
         CoverageLocationOpt clo(pf, mode, verbose);
-        
-        std::set<BPatch_basicBlock*> &instBlocks = instBlocksMap[f];
+
+        tbb::concurrent_hash_map<BPatch_function*, std::set<BPatch_basicBlock*> >::accessor a;
+        assert(concurInstBlocksMap.insert(a, std::make_pair(f, std::set<BPatch_basicBlock*>())));
+        std::set<BPatch_basicBlock*> &instBlocks = a->second;
         for (auto b: blocks) {
             PatchBlock *pb = Dyninst::PatchAPI::convert(b);
             if (!clo.needInstrumentation(pb->start())) {
@@ -266,32 +298,27 @@ int main(int argc, char** argv) {
                 printf("\tinstrument block [%lx, %lx)\n", pb->start(), pb->end());
             }
             instBlocks.insert(b);
-            instrumented.insert(pb->start());
         }
-        functionDist[instBlocks.size()].insert(pf->addr());
+    }
+    
+    determineInstrumentationOrder(funcs);
+    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > instBlocksMap;
+    for (auto f : funcs) {
+        tbb::concurrent_hash_map<BPatch_function*, std::set<BPatch_basicBlock*> >::accessor a;
+        assert(concurInstBlocksMap.find(a, f));
+        instBlocksMap[f] = a->second;
+    }
 
-        if (pgo_address_filename == "") {
-            // Baseline instrumentation
-            for (auto b : instBlocks) {
+    if (pgo_address_filename != "") {
+        LoopCloneOptimizer lco(instBlocksMap, funcs);
+        lco.instrument();
+    } else {
+        for (auto f : funcs) {            
+            for (auto b : instBlocksMap[f]) {
                 InstrumentBlock(f, b);
             }
         }
     }
-    if (pgo_address_filename != "") {
-        LoopCloneOptimizer lco(instBlocksMap, funcs);
-        lco.instrument();
-    }
-    binEdit->writeFile(output_filename.c_str());
-    printf("Finishing instrumentation %d functions, skipped %d functions\n", funcs.size() - skippedFunction, skippedFunction);
+    binEdit->writeFile(output_filename.c_str());    
     printf("Require %d bytes memory in instrumentation region\n", gsOffset);
-
-    int sum = 0;
-    for (auto &rit : functionDist) {
-        printf("%d %d %lx\n", rit.first, rit.second.size(), *(rit.second.begin()));
-        sum += rit.first * rit.second.size();
-
-    }
-    printf("sum %d\n", sum);
-    printf("Unique block address instrumented %d\n", instrumented.size());
-
 }

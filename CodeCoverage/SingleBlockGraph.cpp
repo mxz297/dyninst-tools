@@ -71,6 +71,10 @@ SingleBlockGraph::SingleBlockGraph(PatchFunction* f) {
     }
 }
 
+SingleBlockGraph::~SingleBlockGraph() {
+    //printf("Destructor SingleBlockGraph: has %lu nodes\n", nodeMap.size());
+}
+
 SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
     // Create an empty graph
     SingleBlockGraph::Ptr ret(new SingleBlockGraph());

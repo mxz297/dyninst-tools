@@ -33,6 +33,7 @@ public:
     using Ptr = std::shared_ptr<SingleBlockGraph>;
     SingleBlockGraph(Dyninst::PatchAPI::PatchFunction*);
     SingleBlockGraph() {}
+    ~SingleBlockGraph();
     Ptr buildDominatorGraph();
     SBGNode::Ptr lookupNode(Dyninst::PatchAPI::PatchBlock*);
     void addSBGNode(SBGNode::Ptr);
