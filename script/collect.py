@@ -21,17 +21,18 @@ def isELFFormat(msg):
     return True
    
 args = getParameters()
-tmpfile = tempfile.NamedTemporaryFile()
+tmpfile = tempfile.NamedTemporaryFile(mode="w")
 for root, dirs, files in os.walk(args.srcdir):
     for filename in files:
         srcPath = os.path.join(root, filename)
         tmpfile.write(srcPath + "\n")
+
 cmd = "file -f {0}".format(tmpfile.name)
 p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
 msg, err = p.communicate()
 
 with open(args.out, "w") as f:
-    for line in msg.split("\n")[:-1]:
+    for line in msg.decode().split("\n")[:-1]:
         colon = line.find(":")
         path = line[:colon]
         result = line[colon+1:]
