@@ -16,7 +16,7 @@ def Run(filepath, thread, i):
     msg, err = p.communicate()
     if len(msg.decode()) > 0:
         print (cmd, "has stdout output")
-        print (msg.decod())
+        print (msg.decode())
     if len(err.decode()) > 0:
         print (cmd, "has stderr output")
         print (err.decode())
