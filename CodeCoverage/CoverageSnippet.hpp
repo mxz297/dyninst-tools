@@ -13,16 +13,19 @@ public:
 
 class GlobalMemCoverageSnippet : public CoverageSnippet {
     Dyninst::Address memLoc;
+    static std::map<Dyninst::Address, Dyninst::Address> locMap;
 public:
-    GlobalMemCoverageSnippet();
+    GlobalMemCoverageSnippet(Dyninst::Address);
     bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override;
     void print() override;
 };
 
 class ThreadLocalMemCoverageSnippet : public CoverageSnippet {
     int offset;
+    static std::map<Dyninst::Address, int> locMap;    
 public:
-    ThreadLocalMemCoverageSnippet();
+    static int gsOffset;
+    ThreadLocalMemCoverageSnippet(Dyninst::Address);
     bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override;
     void print() override;
 };

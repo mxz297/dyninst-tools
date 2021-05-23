@@ -72,16 +72,19 @@ static bool CheckJumpTableOutside(PatchFunction* f, PatchLoop* l) {
 }
 
 LoopCloneOptimizer::LoopCloneOptimizer(
-    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > & blocks,
-    std::vector<BPatch_function*>& fs
-): instBlocks(blocks), funcs(fs) {
+    std::map<PatchFunction*, std::set<PatchBlock*> > & blocks,
+    std::vector<PatchFunction*>& fs
+): instBlocks(blocks), funcs(fs) {    
     std::set<PatchLoop*> containJumpTableOutside;
     for (auto & mapIt : instBlocks) {
-        PatchFunction* f = Dyninst::PatchAPI::convert(mapIt.first);
+        PatchFunction* f = mapIt.first;
         for (auto b : f->blocks()) {
             origBlockMap[b->start()] = b;
         }
         std::vector<PatchLoop*> loops;
+        // TODO: I feel I will need PatchAPI level loop detection as the CFG is 
+        // now different from ParseAPI
+        // Otherwise, I only get the original PatchBlock objects.        
         f->getOuterLoops(loops);
         for (auto l : loops) {
             if (CheckJumpTableOutside(f, l)) {
@@ -127,21 +130,24 @@ LoopCloneOptimizer::LoopCloneOptimizer(
 }
 
 void LoopCloneOptimizer::instrument() {
-    for (auto bf : funcs) {
-        PatchFunction* f = Dyninst::PatchAPI::convert(bf);
-        for (auto b : instBlocks[bf]) {
+    for (auto f : funcs) {
+        f->markModified();        
+        for (auto b : instBlocks[f]) {
             CoverageSnippet::Ptr coverage = boost::static_pointer_cast<CoverageSnippet>(
                 threadLocalMemory ?
-                ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet()) :
-                GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet()));
+                ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet(b->start())) :
+                GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet(b->start())));
 
-            BPatch_point* bp = b->findEntryPoint();
-            assert(bp != nullptr);
 
-            Point* p = Dyninst::PatchAPI::convert(bp, BPatch_callBefore);
+            PatchMgr::Ptr mgr = f->obj()->mgr();
+            Point* p = mgr->findPoint(
+                Dyninst::PatchAPI::Location::BlockInstance(f, b, true),
+                Point::BlockEntry,
+                true
+            );
             assert(p != nullptr);
-            snippetMap[b->getStartAddress()] = coverage;
             p->pushBack(coverage);
+            snippetMap[b->start()] = coverage;            
         }
         doLoopClone(f);
     }

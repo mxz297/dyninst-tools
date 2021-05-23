@@ -6,6 +6,9 @@
 #include "BPatch_point.h"
 
 #include "PatchCFG.h"
+#include "PatchObject.h"
+#include "PatchModifier.h"
+
 #include "CFG.h"
 #include "CodeSource.h"
 #include "Region.h"
@@ -45,9 +48,11 @@ std::string output_filename;
 std::string input_filename;
 std::string pgo_address_filename;
 std::string pgo_call_filename;
+std::string pgo_inline_filename;
 std::string mode = "none";
 
 std::vector< std::pair<Address, Address> > callpairs;
+std::vector< std::pair<Address, Address> > callsites;
 
 void readPGOCallFile(std::string &filename) {
     std::ifstream infile(filename, std::fstream::in);
@@ -55,6 +60,15 @@ void readPGOCallFile(std::string &filename) {
     double metric;
     while (infile >> std::hex >> caller >> callee >> metric) {
         callpairs.emplace_back(std::make_pair(caller, callee));
+    }
+}
+
+void readPGOInlineFile(std::string &filename) {
+    std::ifstream infile(filename, std::fstream::in);
+    uint64_t callsite, callee;
+    double metric;
+    while (infile >> std::hex >> callsite >> callee >> metric) {
+        callsites.emplace_back(std::make_pair(callsite, callee));
     }
 }
 
@@ -115,6 +129,12 @@ void parse_command_line(int argc, char** argv) {
             continue;
         }
 
+        if (strcmp(argv[i], "--pgo-inline-file") == 0) {
+            pgo_inline_filename = argv[i+1];
+            readPGOInlineFile(pgo_inline_filename);
+            i += 1;
+            continue;
+        }
 
         if (strcmp(argv[i], "--loop-clone-limit") == 0) {
             loop_clone_limit = atoi(argv[i+1]);
@@ -156,34 +176,31 @@ static bool skipFunction(BPatch_function * f) {
     return r->getRegionName() != ".text";
 }
 
-void InstrumentBlock(BPatch_function *f, BPatch_basicBlock* b) {
+void InstrumentBlock(PatchFunction *f, PatchBlock* b) {
     Snippet::Ptr coverage = threadLocalMemory ?
-        ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet()) :
-        GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet());
+        ThreadLocalMemCoverageSnippet::create(new ThreadLocalMemCoverageSnippet(b->start())) :
+        GlobalMemCoverageSnippet::create(new GlobalMemCoverageSnippet(b->start()));
 
-    BPatch_point* bp = b->findEntryPoint();
-    assert(bp != nullptr);
-
-    Point* p = Dyninst::PatchAPI::convert(bp, BPatch_callBefore);
+    PatchMgr::Ptr mgr = f->obj()->mgr();
+    Point* p = mgr->findPoint(Location::BlockInstance(f, b, true), Point::BlockEntry, true);
     assert(p != nullptr);
     p->pushBack(coverage);
 }
 
-void determineAnalysisOrder(std::vector<BPatch_function*> &funcs) {
+void determineAnalysisOrder(std::vector<PatchFunction*> &funcs) {
     std::map<Address, int> funcsBlockCount;
     for (auto f: funcs) {
-        PatchFunction *pf = Dyninst::PatchAPI::convert(f);
         int count = 0;
-        for (auto b : pf->blocks()) {
+        for (auto b : f->blocks()) {
             count += 1;
         }
-        funcsBlockCount[pf->addr()] = count;
+        funcsBlockCount[f->addr()] = count;
     }
 
     sort(funcs.begin(), funcs.end(),
-        [&funcsBlockCount] (BPatch_function* a, BPatch_function *b) {
-            Address addra = (Address)(a->getBaseAddr());
-            Address addrb = (Address)(b->getBaseAddr());
+        [&funcsBlockCount] (PatchFunction* a, PatchFunction *b) {
+            Address addra = a->addr();
+            Address addrb = b->addr();
             if (funcsBlockCount[addra] == funcsBlockCount[addrb]) {
                 return addra < addrb;
             } else {
@@ -194,7 +211,7 @@ void determineAnalysisOrder(std::vector<BPatch_function*> &funcs) {
 
 }
 
-void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {
+void determineInstrumentationOrder(std::vector<PatchFunction*> &funcs) {
     std::map<Address, std::vector<Address>* > addr_maps;
     for (auto& pair : callpairs) {
         Address &from = pair.first;
@@ -231,13 +248,13 @@ void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {
         funcOrder[addr] = i++;
     }
     sort(funcs.begin(), funcs.end(),
-        [&funcOrder] (BPatch_function* a, BPatch_function *b) {
-            Address addra = (Address)(a->getBaseAddr());
+        [&funcOrder] (PatchFunction* a, PatchFunction *b) {
+            Address addra = a->addr();
             auto ita = funcOrder.find(addra);
             int orderA;
             if (ita == funcOrder.end()) orderA = 100000000; else orderA = ita->second;
 
-            Address addrb = (Address)(b->getBaseAddr());
+            Address addrb = b->addr();
             auto itb = funcOrder.find(addrb);
             int orderB;
             if (itb == funcOrder.end()) orderB = 100000000; else orderB = itb->second;
@@ -248,6 +265,31 @@ void determineInstrumentationOrder(std::vector<BPatch_function*> &funcs) {
     );
 }
 
+void performInlining(std::vector<PatchFunction*>& funcs) {
+    std::map<Address, std::pair<PatchFunction*, PatchBlock*> > callSiteMap;
+    PatchObject* obj = nullptr;
+    for (auto f: funcs) {
+        obj = f->obj();
+        for (auto b : f->callBlocks()) {
+            callSiteMap[b->end()] = std::make_pair(f, b);
+        }
+    }
+    PatchModifier::beginInlineSet(obj);
+    int counter = 0;
+    for (auto & callsite : callsites) {
+        auto cit = callSiteMap.find(callsite.first);
+        if (cit == callSiteMap.end()) continue;
+        PatchFunction* caller = cit->second.first;
+        PatchBlock* callBlock = cit->second.second;
+        Address calleeAddress = callsite.second;
+        if (PatchModifier::inlineCall(caller, callBlock, calleeAddress)) {
+            counter += 1;
+            printf("Inline callsite %lx, callee %lx\n", callsite.first, calleeAddress);
+        }
+    }
+    PatchModifier::endInlineSet();
+}
+
 int main(int argc, char** argv) {
     parse_command_line(argc, argv);
     bpatch.setRelocateJumpTable(enableJumptableReloc);
@@ -256,69 +298,68 @@ int main(int argc, char** argv) {
     binEdit = bpatch.openBinary(input_filename.c_str());
     image = binEdit->getImage();
     std::vector<BPatch_function*>* origFuncs = image->getProcedures();
-    std::vector<BPatch_function*> funcs;
+    std::vector<PatchFunction*> funcs;
+
     for (auto f : *origFuncs) {
         if (skipFunction(f)) {
             continue;
         }
-        f->setLayoutOrder((uint64_t)(f->getBaseAddr()));        
+        f->setLayoutOrder((uint64_t)(f->getBaseAddr()));
         // BPatch_flowGraph cannot be constructed in parallel;
         f->getCFG();
-        funcs.emplace_back(f);
+        PatchFunction *pf = Dyninst::PatchAPI::convert(f);
+        funcs.emplace_back(pf);
     }
-    
+
+    performInlining(funcs);
     determineAnalysisOrder(funcs);
 
-    tbb::concurrent_hash_map<BPatch_function*, std::set<BPatch_basicBlock*> > concurInstBlocksMap;
+    tbb::concurrent_hash_map<PatchFunction*, std::set<PatchBlock*> > concurInstBlocksMap;
     size_t totalFunc = funcs.size();
     #pragma omp parallel for schedule(dynamic)
     for (size_t i = 0; i < totalFunc; ++i) {
-        auto f = funcs[i];
-        PatchFunction *pf = Dyninst::PatchAPI::convert(f);
-        BPatch_flowGraph* cfg = f->getCFG();
-        std::set<BPatch_basicBlock*> blocks;
-        cfg->getAllBasicBlocks(blocks);
+        auto pf = funcs[i];
         if (verbose) {
             printf("Function %s at %lx\n", pf->name().c_str(), pf->addr());
         }
         CoverageLocationOpt clo(pf, mode, verbose);
 
-        tbb::concurrent_hash_map<BPatch_function*, std::set<BPatch_basicBlock*> >::accessor a;
-        assert(concurInstBlocksMap.insert(a, std::make_pair(f, std::set<BPatch_basicBlock*>())));
-        std::set<BPatch_basicBlock*> &instBlocks = a->second;
-        for (auto b: blocks) {
-            PatchBlock *pb = Dyninst::PatchAPI::convert(b);
-            if (!clo.needInstrumentation(pb->start())) {
+        tbb::concurrent_hash_map<PatchFunction*, std::set<PatchBlock*> >::accessor a;
+        assert(concurInstBlocksMap.insert(a, std::make_pair(pf, std::set<PatchBlock*>())));
+        std::set<PatchBlock*> &instBlocks = a->second;
+        for (auto b: pf->blocks()) {
+            if (!clo.needInstrumentation(b->start())) {
                 if (verbose) {
-                    printf("\tskip block [%lx, %lx)\n", pb->start(), pb->end());
+                    printf("\tskip block [%lx, %lx)\n", b->start(), b->end());
                 }
                 continue;
             }
             if (verbose) {
-                printf("\tinstrument block [%lx, %lx)\n", pb->start(), pb->end());
+                printf("\tinstrument block [%lx, %lx)\n", b->start(), b->end());
             }
             instBlocks.insert(b);
         }
     }
-    
+
     determineInstrumentationOrder(funcs);
-    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > instBlocksMap;
-    for (auto f : funcs) {
-        tbb::concurrent_hash_map<BPatch_function*, std::set<BPatch_basicBlock*> >::accessor a;
-        assert(concurInstBlocksMap.find(a, f));
-        instBlocksMap[f] = a->second;
+    std::map<PatchFunction*, std::set<PatchBlock*> > instBlocksMap;
+    for (auto pf : funcs) {
+        tbb::concurrent_hash_map<PatchFunction*, std::set<PatchBlock*> >::accessor a;
+        assert(concurInstBlocksMap.find(a, pf));
+        instBlocksMap[pf] = a->second;
     }
 
     if (pgo_address_filename != "") {
         LoopCloneOptimizer lco(instBlocksMap, funcs);
         lco.instrument();
     } else {
-        for (auto f : funcs) {            
-            for (auto b : instBlocksMap[f]) {
-                InstrumentBlock(f, b);
+        for (auto pf : funcs) {
+            pf->markModified();
+            for (auto b : instBlocksMap[pf]) {
+                InstrumentBlock(pf, b);
             }
         }
     }
-    binEdit->writeFile(output_filename.c_str());    
-    printf("Require %d bytes memory in instrumentation region\n", gsOffset);
+    binEdit->writeFile(output_filename.c_str());
+    printf("Require %d bytes memory in instrumentation region\n", ThreadLocalMemCoverageSnippet::gsOffset);
 }

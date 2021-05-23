@@ -2,11 +2,11 @@
 
 #include "BPatch_binaryEdit.h"
 
+using Dyninst::Address;
+
 extern int nops;
 extern BPatch_binaryEdit *binEdit;
 extern bool emptyInst;
-
-int gsOffset = 0;
 
 void CoverageSnippet::print() {
     printf("CoverageSnippet");
@@ -21,8 +21,16 @@ bool CoverageSnippet::generateNOPs(Dyninst::Buffer& buf) {
     return true;
 }
 
-GlobalMemCoverageSnippet::GlobalMemCoverageSnippet() {
-    memLoc = binEdit->allocateStaticMemoryRegion(1, "");
+std::map<Address, Address> GlobalMemCoverageSnippet::locMap;
+
+GlobalMemCoverageSnippet::GlobalMemCoverageSnippet(Address blockAddr) {
+    auto it = locMap.find(blockAddr);    
+    if (it == locMap.end()) {
+        memLoc = binEdit->allocateStaticMemoryRegion(1, "");
+        locMap.emplace(blockAddr, memLoc);
+    } else {
+        memLoc = it->second;
+    }
 }
 
 bool GlobalMemCoverageSnippet::generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) {
@@ -45,8 +53,17 @@ void GlobalMemCoverageSnippet::print() {
     printf("GMSnippet<%lx>", memLoc);
 }
 
-ThreadLocalMemCoverageSnippet::ThreadLocalMemCoverageSnippet() {
-    offset = gsOffset++;
+int ThreadLocalMemCoverageSnippet::gsOffset = 0;
+std::map<Address, int> ThreadLocalMemCoverageSnippet::locMap;
+
+ThreadLocalMemCoverageSnippet::ThreadLocalMemCoverageSnippet(Address blockAddr) {
+    auto it = locMap.find(blockAddr);
+    if (it == locMap.end()) {
+        offset = gsOffset++;
+        locMap.emplace(blockAddr, offset);        
+    } else {
+        offset = it->second;
+    }
 }
 
 bool ThreadLocalMemCoverageSnippet::generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) {

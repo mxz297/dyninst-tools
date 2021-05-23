@@ -19,8 +19,8 @@ class LoopCloneOptimizer {
     std::map<Dyninst::PatchAPI::PatchLoop*, int> loopSizeMap;
     std::map<Dyninst::PatchAPI::PatchBlock*, Dyninst::PatchAPI::PatchLoop*> origBlockLoopMap;
 
-    std::map<BPatch_function*, std::set<BPatch_basicBlock*> > &instBlocks;
-    std::vector<BPatch_function*>& funcs;
+    std::map<Dyninst::PatchAPI::PatchFunction*, std::set<Dyninst::PatchAPI::PatchBlock*> > &instBlocks;
+    std::vector<Dyninst::PatchAPI::PatchFunction*>& funcs;
 
     std::unordered_map<uint64_t, CoverageSnippet::Ptr> snippetMap;
     std::unordered_map<uint64_t, Dyninst::PatchAPI::PatchBlock*> origBlockMap;
@@ -34,8 +34,8 @@ class LoopCloneOptimizer {
 
 
 public:
-    static bool readPGOFile(const std::string&);
-    LoopCloneOptimizer(std::map<BPatch_function*, std::set<BPatch_basicBlock*> >&, std::vector<BPatch_function*>&);
+    static bool readPGOFile(const std::string&);    
+    LoopCloneOptimizer(std::map<Dyninst::PatchAPI::PatchFunction*, std::set<Dyninst::PatchAPI::PatchBlock*> >&, std::vector<Dyninst::PatchAPI::PatchFunction*>&);
     void instrument();
 };
 
