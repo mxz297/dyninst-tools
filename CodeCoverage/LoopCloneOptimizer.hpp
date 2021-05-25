@@ -23,7 +23,7 @@ class LoopCloneOptimizer {
     std::vector<Dyninst::PatchAPI::PatchFunction*>& funcs;
 
     std::unordered_map<uint64_t, CoverageSnippet::Ptr> snippetMap;
-    std::unordered_map<uint64_t, Dyninst::PatchAPI::PatchBlock*> origBlockMap;
+    std::unordered_map<uint64_t, std::vector<Dyninst::PatchAPI::PatchBlock*> > origBlockMap;
     std::vector< std::map<Dyninst::PatchAPI::PatchBlock*, Dyninst::PatchAPI::PatchBlock* > > versionedCloneMap;
 
     std::set<Dyninst::PatchAPI::PatchBlock*> blocksToClone;
