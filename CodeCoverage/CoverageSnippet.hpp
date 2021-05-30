@@ -25,6 +25,7 @@ class ThreadLocalMemCoverageSnippet : public CoverageSnippet {
     static std::map<Dyninst::Address, int> locMap;    
 public:
     static int gsOffset;
+    static void printCoverage(std::string&);
     ThreadLocalMemCoverageSnippet(Dyninst::Address);
     bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override;
     void print() override;

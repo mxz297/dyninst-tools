@@ -31,8 +31,7 @@ class CoverageLocationOpt {
         std::string&);
 
     void computeLoopNestLevels(Dyninst::PatchAPI::PatchFunction*);
-    void computeLoopNestLevelsImpl(Dyninst::PatchAPI::PatchLoop* , int);
-    void countInstrumentedBlocksInLoops(Dyninst::PatchAPI::PatchFunction*);
+    void computeLoopNestLevelsImpl(Dyninst::PatchAPI::PatchLoop* , int);    
 
     Dyninst::PatchAPI::PatchBlock* chooseSBRep(std::shared_ptr<GraphAnalysis::MBGNode> mbgn);
     bool hasPathWithoutChild(std::shared_ptr<GraphAnalysis::SingleBlockGraph>, std::shared_ptr<GraphAnalysis::MBGNode>);

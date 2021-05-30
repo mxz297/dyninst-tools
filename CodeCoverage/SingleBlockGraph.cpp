@@ -102,7 +102,7 @@ SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
 
     // Add edges based on dominator tree
     Graph::EdgeList elist;
-    dominatorTree(elist);
+    dominatorTree(elist);    
     for (const auto& edge : elist) {
         SBGNode::Ptr source = std::static_pointer_cast<SBGNode>(edge.first);
         SBGNode::Ptr target = std::static_pointer_cast<SBGNode>(edge.second);
@@ -112,7 +112,7 @@ SingleBlockGraph::Ptr SingleBlockGraph::buildDominatorGraph() {
 
     // Add edges based on post dominator tree
     elist.clear();
-    postDominatorTree(elist);
+    postDominatorTree(elist);    
     for (const auto& edge : elist) {
         SBGNode::Ptr source = std::static_pointer_cast<SBGNode>(edge.first);
         SBGNode::Ptr target = std::static_pointer_cast<SBGNode>(edge.second);

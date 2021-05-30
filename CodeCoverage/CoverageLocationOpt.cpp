@@ -35,9 +35,7 @@ CoverageLocationOpt::CoverageLocationOpt(PatchFunction* f, std::string mode, boo
 
     computeLoopNestLevels(f);
 
-    determineBlocks(cfg, sbdg, mode);
-
-    //countInstrumentedBlocksInLoops(f);
+    determineBlocks(cfg, sbdg, mode);    
 }
 
 CoverageLocationOpt::CoverageLocationOpt(SingleBlockGraph::Ptr cfg, MultiBlockGraph::Ptr sbdg, std::string mode) {
@@ -99,17 +97,6 @@ PatchBlock* CoverageLocationOpt::chooseSBRep(MBGNode::Ptr mbgn) {
         }
     }
     return ret;
-    /*
-    // Choose a block that has the smallest loop nest level
-    PatchBlock *ret = nullptr;
-    for (auto pb : mbgn->getPatchBlocks()) {
-        if (ret == nullptr || loopNestLevel[pb] < loopNestLevel[ret] ||
-            (loopNestLevel[pb] == loopNestLevel[ret] && ret->start() > pb->start())) {
-            ret = pb;
-        }
-    }
-    return ret;
-    */
 }
 
 static void initializeVisited(std::set<PatchBlock*> &visited, MBGNode::Ptr mbgn) {
@@ -181,27 +168,3 @@ void CoverageLocationOpt::computeLoopNestLevelsImpl(PatchLoop *l , int level) {
         computeLoopNestLevelsImpl(nl, level + 1);
     }
 }
-
-void CoverageLocationOpt::countInstrumentedBlocksInLoops(PatchFunction* f) {
-    vector<PatchLoop*> loops;
-    f->getLoops(loops);
-    for (auto l : loops) {
-        vector<PatchBlock*> blocks;
-        l->getLoopBasicBlocks(blocks);
-        std::vector<PatchBlock*> ib;
-        for (auto b : blocks) {
-            if (needInstrumentation(b->start())) {
-                ib.emplace_back(b);
-            }
-        }
-        std::vector<PatchBlock*> entries;
-        l->getLoopEntries(entries);
-
-        printf("Loop in function %s at entry ", f->name().c_str());
-        for (auto b: entries) {
-            printf(" %lx,", b->start());
-        }
-        printf("  has %d instrumented blocks\n", ib.size());
-    }
-}
-

@@ -49,7 +49,7 @@ void Node::clearDominatorInfo(Node::Ptr in) {
     bucket.clear();
 }
 
-void Node::Print(bool realCode) {
+void Node::Print(bool realCode) {    
     PrintNodeData(realCode);
     fprintf(stderr, "\n\tout edges:");
     for (auto& n : outEdgeList()) {
@@ -157,7 +157,8 @@ void Graph::dominatorComputation(EdgeList& output, Graph::TraversalDirection dir
 
 void Graph::SCC(std::vector< std::set<Node::Ptr> > &sccList){
     initializeDominatorInfo();
-    for (const auto& n: entries) {
+    for (auto& n: allNodes) {
+        if (n->dfs_no != -1) continue;
         DFS(n, TraversalDirection::Natural);
     }
 
@@ -222,7 +223,21 @@ void Graph::DFS(Node::Ptr v, Graph::TraversalDirection dir) {
 }
 
 void Graph::Print(bool realCode) {
+    fprintf(stderr, "Total number of nodes: %lu\n", allNodes.size());
+    fprintf(stderr, "Entries\n");
+    std::set<Node::Ptr> printed;
+    for (auto &n : entries) {
+        n->Print(realCode);
+        printed.insert(n);
+    }
+    fprintf(stderr, "Exits\n");
+    for (auto &n : exits) {
+        n->Print(realCode);
+        printed.insert(n);
+    }
+    fprintf(stderr, "Other nodes\n");
     for (auto &n : allNodes) {
+        if (printed.find(n) != printed.end()) continue;
         n->Print(realCode);
     }
 }

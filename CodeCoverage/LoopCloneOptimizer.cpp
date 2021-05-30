@@ -268,6 +268,7 @@ void LoopCloneOptimizer::makeOneCopy(PatchFunction* f, int version, vector<Patch
         cloneBlockMap[b] = cloneB;
         newBlocks.emplace_back(cloneB);
         PatchModifier::addBlockToFunction(f, cloneB);
+        cloneB->cloneInstrumentation(f, f, b);
     }
 
     versionedCloneMap.emplace_back(cloneBlockMap);

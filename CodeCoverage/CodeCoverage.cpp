@@ -50,6 +50,7 @@ std::string pgo_address_filename;
 std::string pgo_call_filename;
 std::string pgo_inline_filename;
 std::string mode = "none";
+std::string coverage_file;
 
 std::vector< std::pair<Address, Address> > callpairs;
 std::vector< std::pair<Address, Address> > callsites;
@@ -155,6 +156,12 @@ void parse_command_line(int argc, char** argv) {
 
         if (strcmp(argv[i], "--enable-profile") == 0) {
             enableProfile = true;
+            continue;
+        }
+
+        if (strcmp(argv[i], "--print-coverage") == 0) {
+            coverage_file = argv[i+1];
+            i += 1;
             continue;
         }
 
@@ -274,17 +281,22 @@ void performInlining(std::vector<PatchFunction*>& funcs) {
             callSiteMap[b->end()] = std::make_pair(f, b);
         }
     }
-    PatchModifier::beginInlineSet(obj);
-    int counter = 0;
+    PatchModifier::beginInlineSet(obj);    
     for (auto & callsite : callsites) {
         auto cit = callSiteMap.find(callsite.first);
         if (cit == callSiteMap.end()) continue;
         PatchFunction* caller = cit->second.first;
-        PatchBlock* callBlock = cit->second.second;
+        PatchBlock* callBlock = cit->second.second;        
+        bool indirect = false;
+        for (auto e : callBlock->targets()) {
+            if (e->sinkEdge()) {
+                indirect = true;
+            }
+        }
+        if (indirect) continue;
         Address calleeAddress = callsite.second;
-        if (PatchModifier::inlineCall(caller, callBlock, calleeAddress)) {
-            counter += 1;
-            printf("Inline callsite %lx, callee %lx\n", callsite.first, calleeAddress);
+        if (PatchModifier::inlineCall(caller, callBlock, calleeAddress)) {            
+            printf("Inline callsite %lx, callee %lx\n", callsite.first, calleeAddress);            
         }
     }
     PatchModifier::endInlineSet();
@@ -339,7 +351,7 @@ int main(int argc, char** argv) {
             }
             instBlocks.insert(b);
         }
-    }
+    }    
 
     determineInstrumentationOrder(funcs);
     std::map<PatchFunction*, std::set<PatchBlock*> > instBlocksMap;
@@ -362,4 +374,5 @@ int main(int argc, char** argv) {
     }
     binEdit->writeFile(output_filename.c_str());
     printf("Require %d bytes memory in instrumentation region\n", ThreadLocalMemCoverageSnippet::gsOffset);
+    ThreadLocalMemCoverageSnippet::printCoverage(coverage_file);
 }

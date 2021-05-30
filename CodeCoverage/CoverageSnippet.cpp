@@ -90,3 +90,15 @@ bool ThreadLocalMemCoverageSnippet::generate(Dyninst::PatchAPI::Point* pt, Dynin
 void ThreadLocalMemCoverageSnippet::print() {
     printf("TLMSnippet<%x>", offset);
 }
+
+void ThreadLocalMemCoverageSnippet::printCoverage(std::string& filename) {
+    if (filename == "") return;
+    FILE* f = fopen(filename.c_str(), "w");
+    if (f == nullptr) return;
+    fprintf(f, "%d\n", gsOffset);
+    for (auto &it : locMap) {
+        //fprintf(f, "%lx %d\n", it.first, it.second);
+        fprintf(f, "%lx\n", it.first);
+    }
+    fclose(f);
+}
