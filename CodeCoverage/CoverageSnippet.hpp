@@ -17,6 +17,7 @@ class GlobalMemCoverageSnippet : public CoverageSnippet {
 public:
     GlobalMemCoverageSnippet(Dyninst::Address);
     bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override;
+    const char* snippetName() const override { return "coverage"; }
     void print() override;
 };
 
@@ -28,6 +29,7 @@ public:
     static void printCoverage(std::string&);
     ThreadLocalMemCoverageSnippet(Dyninst::Address);
     bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override;
+    const char* snippetName() const override { return "coverage"; }
     void print() override;
 };
 
