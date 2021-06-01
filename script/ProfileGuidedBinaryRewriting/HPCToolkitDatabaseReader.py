@@ -273,6 +273,7 @@ class HPCToolkitReader:
         elif xml_tag == 'S':
             # statement
             line = xml_node.get('l')
+            addr = xml_node.get('v')
             # this might not be required for resolving conflicts
             name = "line " + line
             node_callpath = parent_callpath
@@ -280,7 +281,7 @@ class HPCToolkitReader:
             hnode = Node(nid, tuple(node_callpath), hparent)
             fname = src_file
             node_dict = self.create_node_dict(nid, hnode, name, xml_tag,
-                fname, line, None , "0")
+                fname, line, None , addr)
         elif xml_tag == 'C':
             # call site
             addr = xml_node.get('v')
