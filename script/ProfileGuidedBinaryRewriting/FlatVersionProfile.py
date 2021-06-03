@@ -59,12 +59,36 @@ class VersionDataAnalyzer:
             self.metricMap[s] = 0.0
         self.metricMap["other"] = 0.0
         self.metricMap["original"] = 0.0
+        
+        instMap = {}
+        instVersionMap = {}
         for addr, metric in self.metricList:
-            s , _ = self.findAddrString(addr)
+            s , _ , index = self.findAddrString(addr)
             self.metricMap[s] += metric
+            if s == "coverage":
+                o = self.origAddrs[index+1]
+                if o not in instMap: instMap[o] = 0.0
+                instMap[o] += metric
+
+                v = self.versions[index+1]
+                if o not in instVersionMap: instVersionMap[o] = {}
+                if v not in instVersionMap[o]: instVersionMap[o][v] = 0.0
+                instVersionMap[o][v] += metric
+
         print ("Instrumentation Profile:")
         for k, v in self.metricMap.items():
             print (k, v, v * 100.0 / self.totalMetric)
+        
+        origList = []
+        for addr, m in instMap.items():
+            origList.append( (m, addr) )
+        origList.sort(reverse=True)    
+        for m, addr in origList:
+            percentage = m * 100.0 / self.metricMap["coverage"]
+            if percentage < 1: break
+            print (hex(addr), m, percentage)            
+            for v in instVersionMap[addr]:
+                print ("\t", v, instVersionMap[addr][v], instVersionMap[addr][v] * 100.0 / m)
 
     def printVersionProfile(self):
         self.metricMap = {}
@@ -72,7 +96,7 @@ class VersionDataAnalyzer:
             self.metricMap[s] = 0.0
         self.metricMap["other"] = 0.0
         for addr, metric in self.metricList:
-            _ , v = self.findAddrString(addr)
+            _ , v, index = self.findAddrString(addr)
             self.metricMap[v] += metric
         print ("Version Profile:")
         profileList = []
@@ -87,15 +111,15 @@ class VersionDataAnalyzer:
     def findAddrString(self, addr):
         index = bisect.bisect(self.relocAddrs, addr)
         if index == 0:
-            return "other", "other"
+            return "other", "other", index
         index -= 1
         if self.relocAddrs[index] <= addr and addr < self.relocAddrs[index] + self.sizes[index]:
             if self.origAddrs[index] > 0:
-                return "original", self.versions[index]
+                return "original", self.versions[index], index
             else:
-                return self.strings[-self.origAddrs[index] - 1], self.versions[index]
+                return self.strings[-self.origAddrs[index] - 1], self.versions[index], index
         else:
-            return "other", "other"
+            return "other", "other", index
 
 def main():
     sys.setrecursionlimit(0x10000)
