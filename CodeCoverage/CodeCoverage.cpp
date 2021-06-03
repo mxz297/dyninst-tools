@@ -281,12 +281,12 @@ void performInlining(std::vector<PatchFunction*>& funcs) {
             callSiteMap[b->end()] = std::make_pair(f, b);
         }
     }
-    PatchModifier::beginInlineSet(obj);    
+    PatchModifier::beginInlineSet(obj);
     for (auto & callsite : callsites) {
         auto cit = callSiteMap.find(callsite.first);
         if (cit == callSiteMap.end()) continue;
         PatchFunction* caller = cit->second.first;
-        PatchBlock* callBlock = cit->second.second;        
+        PatchBlock* callBlock = cit->second.second;
         bool indirect = false;
         for (auto e : callBlock->targets()) {
             if (e->sinkEdge()) {
@@ -295,8 +295,8 @@ void performInlining(std::vector<PatchFunction*>& funcs) {
         }
         if (indirect) continue;
         Address calleeAddress = callsite.second;
-        if (PatchModifier::inlineCall(caller, callBlock, calleeAddress)) {            
-            printf("Inline callsite %lx, callee %lx\n", callsite.first, calleeAddress);            
+        if (PatchModifier::inlineCall(caller, callBlock, calleeAddress)) {
+            printf("Inline callsite %lx, callee %lx\n", callsite.first, calleeAddress);
         }
     }
     PatchModifier::endInlineSet();
@@ -351,7 +351,7 @@ int main(int argc, char** argv) {
             }
             instBlocks.insert(b);
         }
-    }    
+    }
 
     determineInstrumentationOrder(funcs);
     std::map<PatchFunction*, std::set<PatchBlock*> > instBlocksMap;
@@ -372,7 +372,9 @@ int main(int argc, char** argv) {
             }
         }
     }
+
     binEdit->writeFile(output_filename.c_str());
     printf("Require %d bytes memory in instrumentation region\n", ThreadLocalMemCoverageSnippet::gsOffset);
     ThreadLocalMemCoverageSnippet::printCoverage(coverage_file);
+    return 0;
 }
